@@ -10,14 +10,18 @@ const MS_PER_MINUTE = 60 * 1000;
 
 export type InvestigationReport = {
   sentryIssue: SentryIssue;
-  suspectedCausingPr: PullRequest;
+  suspectedCausingPr?: PullRequest;
   otherCandidatePrs: Array<{
     pullRequest: PullRequest;
     minutesBeforeFirstSeen: number;
   }>;
+  missingProof: {
+    serviceMatch: boolean;
+    timeMatch: boolean;
+  };
   evidence: {
-    serviceMatch: string;
-    minutesBeforeFirstSeen: number;
+    serviceMatch?: string;
+    minutesBeforeFirstSeen?: number;
     slackContext?: SlackMessage;
   };
   runtime: {
@@ -37,11 +41,18 @@ export function investigateSentryIssue(
   }
 
   const firstSeenAt = new Date(sentryIssue.firstSeenAt).getTime();
-  const candidatePrs = data.pullRequests
-    .map((pullRequest) => ({
-      pullRequest,
-      minutesBeforeFirstSeen: (firstSeenAt - new Date(pullRequest.mergedAt).getTime()) / MS_PER_MINUTE
-    }))
+  const pullRequestsWithTiming = data.pullRequests.map((pullRequest) => ({
+    pullRequest,
+    minutesBeforeFirstSeen: (firstSeenAt - new Date(pullRequest.mergedAt).getTime()) / MS_PER_MINUTE
+  }));
+  const hasServiceMatch = pullRequestsWithTiming.some(
+    ({ pullRequest }) => pullRequest.serviceTag === sentryIssue.serviceTag
+  );
+  const hasTimeMatch = pullRequestsWithTiming.some(
+    ({ minutesBeforeFirstSeen }) =>
+      minutesBeforeFirstSeen >= 0 && minutesBeforeFirstSeen <= INVESTIGATION_WINDOW_MINUTES
+  );
+  const candidatePrs = pullRequestsWithTiming
     .filter(({ pullRequest, minutesBeforeFirstSeen }) => {
       return (
         pullRequest.serviceTag === sentryIssue.serviceTag &&
@@ -54,7 +65,19 @@ export function investigateSentryIssue(
   const closestPriorCandidate = candidatePrs[0];
 
   if (!closestPriorCandidate) {
-    return undefined;
+    return {
+      sentryIssue,
+      otherCandidatePrs: [],
+      missingProof: {
+        serviceMatch: !hasServiceMatch,
+        timeMatch: !hasTimeMatch
+      },
+      evidence: {},
+      runtime: {
+        source: "Local Prototype Data",
+        investigationWindowMinutes: INVESTIGATION_WINDOW_MINUTES
+      }
+    };
   }
 
   const suspectedCausingPr = closestPriorCandidate.pullRequest;
@@ -73,6 +96,10 @@ export function investigateSentryIssue(
     sentryIssue,
     suspectedCausingPr,
     otherCandidatePrs: candidatePrs.slice(1),
+    missingProof: {
+      serviceMatch: false,
+      timeMatch: false
+    },
     evidence: {
       serviceMatch: sentryIssue.serviceTag,
       minutesBeforeFirstSeen: closestPriorCandidate.minutesBeforeFirstSeen,
@@ -87,6 +114,28 @@ export function investigateSentryIssue(
 
 export function formatDeterministicReport(report: InvestigationReport): string {
   const { sentryIssue, suspectedCausingPr, otherCandidatePrs, evidence, runtime } = report;
+  const suspectedCausingPrLines = suspectedCausingPr
+    ? [
+        "Suspected Causing PR",
+        `- PR: #${suspectedCausingPr.number}`,
+        `- title: ${suspectedCausingPr.title}`,
+        `- author: ${suspectedCausingPr.author}`,
+        `- service tag: ${suspectedCausingPr.serviceTag}`,
+        `- merged at: ${suspectedCausingPr.mergedAt}`,
+        `- merge commit: ${suspectedCausingPr.mergeCommit}`
+      ]
+    : ["No Suspected Causing PR Found"];
+  const proofLines = suspectedCausingPr
+    ? [
+        "Evidence",
+        `- Service Match: ${evidence.serviceMatch}`,
+        `- Time Match: merged ${evidence.minutesBeforeFirstSeen} minutes before first seen`
+      ]
+    : [
+        "Missing Proof",
+        `- Service Match: ${report.missingProof.serviceMatch ? "missing" : "present"}`,
+        `- Time Match: ${report.missingProof.timeMatch ? "missing" : "present"}`
+      ];
   const slackContext = evidence.slackContext
     ? `${evidence.slackContext.channel} ${evidence.slackContext.sentAt} ${evidence.slackContext.text}`
     : "missing";
@@ -109,18 +158,10 @@ export function formatDeterministicReport(report: InvestigationReport): string {
     `- service tag: ${sentryIssue.serviceTag}`,
     `- first seen: ${sentryIssue.firstSeenAt}`,
     "",
-    "Suspected Causing PR",
-    `- PR: #${suspectedCausingPr.number}`,
-    `- title: ${suspectedCausingPr.title}`,
-    `- author: ${suspectedCausingPr.author}`,
-    `- service tag: ${suspectedCausingPr.serviceTag}`,
-    `- merged at: ${suspectedCausingPr.mergedAt}`,
-    `- merge commit: ${suspectedCausingPr.mergeCommit}`,
+    ...suspectedCausingPrLines,
     "",
-    "Evidence",
-    `- Service Match: ${evidence.serviceMatch}`,
-    `- Time Match: merged ${evidence.minutesBeforeFirstSeen} minutes before first seen`,
-    `- Slack Context: ${slackContext}`,
+    ...proofLines,
+    ...(suspectedCausingPr ? [`- Slack Context: ${slackContext}`] : []),
     "",
     "Other Candidate PRs",
     ...otherCandidateLines,

@@ -40,6 +40,24 @@ export const localPrototypeData: LocalPrototypeData = {
       title: "Billing receipt webhook rejects settled invoice",
       serviceTag: "billing",
       firstSeenAt: "2026-05-25T11:00:00.000Z"
+    },
+    {
+      id: "SENTRY-TB-1003",
+      title: "Inventory reservation fails during checkout",
+      serviceTag: "inventory",
+      firstSeenAt: "2026-05-25T10:35:00.000Z"
+    },
+    {
+      id: "SENTRY-TB-1004",
+      title: "Checkout receipt page times out long after deploy",
+      serviceTag: "checkout",
+      firstSeenAt: "2026-05-25T12:00:00.000Z"
+    },
+    {
+      id: "SENTRY-TB-1005",
+      title: "Search indexing worker drops queued updates",
+      serviceTag: "search",
+      firstSeenAt: "2026-05-25T12:00:00.000Z"
     }
   ],
   pullRequests: [

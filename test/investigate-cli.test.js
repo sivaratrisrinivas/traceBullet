@@ -82,3 +82,48 @@ test("machine report excludes Slack Context without a pre-incident Slack Marker"
   assert.equal(machineReport.evidence.minutesBeforeFirstSeen, 12);
   assert.equal(Object.hasOwn(machineReport.evidence, "slackContext"), false);
 });
+
+test("investigation command reports no suspect when only Time Match exists", async () => {
+  const result = runTraceBulletCommand([
+    "investigate",
+    "SENTRY-TB-1003"
+  ]);
+  const stdout = result.stdout;
+
+  assert.equal(result.exitCode, 0);
+  assert.match(stdout, /No Suspected Causing PR Found/);
+  assert.doesNotMatch(stdout, /Suspected Causing PR\n- PR:/);
+  assert.match(stdout, /Missing Proof/);
+  assert.match(stdout, /Service Match: missing/);
+  assert.match(stdout, /Time Match: present/);
+});
+
+test("investigation command reports no suspect when only Service Match exists", async () => {
+  const result = runTraceBulletCommand([
+    "investigate",
+    "SENTRY-TB-1004"
+  ]);
+  const stdout = result.stdout;
+
+  assert.equal(result.exitCode, 0);
+  assert.match(stdout, /No Suspected Causing PR Found/);
+  assert.doesNotMatch(stdout, /Suspected Causing PR\n- PR:/);
+  assert.match(stdout, /Missing Proof/);
+  assert.match(stdout, /Service Match: present/);
+  assert.match(stdout, /Time Match: missing/);
+});
+
+test("investigation command reports no suspect when neither required match exists", async () => {
+  const result = runTraceBulletCommand([
+    "investigate",
+    "SENTRY-TB-1005"
+  ]);
+  const stdout = result.stdout;
+
+  assert.equal(result.exitCode, 0);
+  assert.match(stdout, /No Suspected Causing PR Found/);
+  assert.doesNotMatch(stdout, /Suspected Causing PR\n- PR:/);
+  assert.match(stdout, /Missing Proof/);
+  assert.match(stdout, /Service Match: missing/);
+  assert.match(stdout, /Time Match: missing/);
+});

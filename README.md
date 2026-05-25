@@ -24,6 +24,7 @@ For the known prototype Sentry issue, TraceBullet:
 - Selects the closest prior merge as the Suspected Causing PR.
 - Lists other Candidate PRs separately from the Suspected Causing PR.
 - Shows missing Slack Context as an evidence gap without failing the investigation.
+- Returns No Suspected Causing PR Found when Service Match, Time Match, or both are missing.
 - Prints a human-readable Deterministic Report with Sentry issue, Suspected Causing PR, Evidence, Other Candidate PRs, and Runtime sections.
 - Prints a Machine Report JSON shape with the same core facts when `--json` is passed.
 
@@ -62,10 +63,24 @@ Run an investigation where Slack Context is missing:
 node src/cli.ts investigate SENTRY-TB-1002
 ```
 
+Run investigations where required proof is missing:
+
+```bash
+node src/cli.ts investigate SENTRY-TB-1003
+node src/cli.ts investigate SENTRY-TB-1004
+node src/cli.ts investigate SENTRY-TB-1005
+```
+
+These no-suspect fixtures cover the three missing-proof outcomes:
+
+- `SENTRY-TB-1003`: Time Match is present, Service Match is missing.
+- `SENTRY-TB-1004`: Service Match is present, Time Match is missing.
+- `SENTRY-TB-1005`: both Service Match and Time Match are missing.
+
 Run tests:
 
 ```bash
 npm test
 ```
 
-The tests exercise the public command behavior and verify the successful investigation report without asserting private implementation details.
+The tests exercise the public command behavior and verify successful and no-suspect investigation reports without asserting private implementation details.
