@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TraceBullet Prototype</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="shortcut icon" href="./favicon.ico" />
+    <style>
+      :root {
+        --paper: #f4f1e8;
+        --plate: #e8e3d6;
+        --ink: #171714;
+        --soft: #8d8779;
+        --line: #c7beab;
+        --light: #fff5b3;
+        --green: #557b62;
+        --red: #b64b3b;
+        --blue: #436f91;
+        --shadow: 0 28px 80px rgba(38, 35, 28, 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 50% 30%, rgba(255, 245, 179, 0.22), transparent 28rem),
+          linear-gradient(90deg, rgba(23, 23, 20, 0.04) 1px, transparent 1px),
+          linear-gradient(rgba(23, 23, 20, 0.04) 1px, transparent 1px),
+          var(--paper);
+        background-size: auto, 24px 24px, 24px 24px, auto;
+        font-family: "Courier New", Courier, monospace;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .shell {
+        width: min(1180px, calc(100vw - 28px));
+        min-height: 100vh;
+        margin: 0 auto;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 16px;
+        padding: 18px 0;
+      }
+
+      .top {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 16px;
+        align-items: start;
+      }
+
+      .brand {
+        display: flex;
+        gap: 12px;
+        align-items: baseline;
+      }
+
+      .brand h1 {
+        margin: 0;
+        font: 700 clamp(28px, 5vw, 58px) / 0.9 Georgia, "Times New Roman", serif;
+        letter-spacing: 0;
+      }
+
+      .brand span,
+      .meta,
+      .tiny {
+        color: var(--soft);
+        font-size: 11px;
+        line-height: 1.35;
+        text-transform: lowercase;
+      }
+
+      .prototype {
+        border: 1px solid var(--ink);
+        background: var(--light);
+        padding: 7px 9px;
+        color: var(--ink);
+        font-size: 11px;
+        text-transform: lowercase;
+      }
+
+      .instrument {
+        align-self: center;
+        display: grid;
+        grid-template-columns: 152px minmax(0, 1fr) 116px;
+        gap: 18px;
+        min-height: 620px;
+      }
+
+      .rail,
+      .stage,
+      .control {
+        border: 1px solid var(--ink);
+        background: rgba(232, 227, 214, 0.92);
+        box-shadow: var(--shadow);
+      }
+
+      .rail {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 18px;
+        padding: 14px;
+      }
+
+      .lights {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        align-content: start;
+      }
+
+      .light {
+        aspect-ratio: 1;
+        border: 1px solid var(--ink);
+        background: #d8d0bf;
+      }
+
+      .light.on {
+        background: var(--light);
+        box-shadow: 0 0 18px rgba(255, 245, 179, 0.9);
+      }
+
+      .light.done {
+        background: var(--green);
+      }
+
+      .sources {
+        display: grid;
+        gap: 8px;
+        align-content: end;
+      }
+
+      .source {
+        display: flex;
+        justify-content: space-between;
+        border-top: 1px solid var(--line);
+        padding-top: 7px;
+        font-size: 11px;
+      }
+
+      .dot {
+        width: 9px;
+        height: 9px;
+        border: 1px solid var(--ink);
+        background: var(--green);
+      }
+
+      .stage {
+        position: relative;
+        overflow: hidden;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        padding: clamp(18px, 4vw, 44px);
+      }
+
+      .step-label {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        border-bottom: 1px solid var(--ink);
+        padding-bottom: 12px;
+      }
+
+      .screen {
+        display: grid;
+        align-content: center;
+        gap: 24px;
+        min-height: 420px;
+      }
+
+      .kicker {
+        color: var(--soft);
+        font-size: 12px;
+        text-transform: lowercase;
+      }
+
+      .title {
+        margin: 0;
+        max-width: 780px;
+        font: 700 clamp(42px, 8vw, 106px) / 0.88 Georgia, "Times New Roman", serif;
+        letter-spacing: 0;
+      }
+
+      .sentence {
+        max-width: 620px;
+        margin: 0;
+        font: 18px/1.5 Georgia, "Times New Roman", serif;
+      }
+
+      .input-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        max-width: 780px;
+      }
+
+      .issue-input {
+        min-width: 0;
+        height: 58px;
+        border: 1px solid var(--ink);
+        background: #fffdf5;
+        color: var(--ink);
+        padding: 0 16px;
+        font-size: clamp(15px, 2.5vw, 26px);
+        box-shadow: 5px 5px 0 rgba(23, 23, 20, 0.12);
+      }
+
+      .primary {
+        min-width: 142px;
+        height: 58px;
+        border: 1px solid var(--ink);
+        background: var(--ink);
+        color: var(--paper);
+        padding: 0 18px;
+        box-shadow: 5px 5px 0 rgba(23, 23, 20, 0.16);
+      }
+
+      .primary:active,
+      .square:active {
+        transform: translate(2px, 2px);
+        box-shadow: 2px 2px 0 rgba(23, 23, 20, 0.18);
+      }
+
+      .samples {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .sample {
+        border: 1px solid var(--ink);
+        background: transparent;
+        padding: 8px 10px;
+        font-size: 11px;
+      }
+
+      .result-card {
+        width: min(680px, 100%);
+        border: 1px solid var(--ink);
+        background: #fffdf5;
+        padding: clamp(18px, 4vw, 34px);
+        box-shadow: 8px 8px 0 rgba(23, 23, 20, 0.12);
+      }
+
+      .huge {
+        margin: 10px 0 4px;
+        font: 700 clamp(70px, 16vw, 180px) / 0.78 Georgia, "Times New Roman", serif;
+      }
+
+      .pair {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        gap: 12px;
+        border-top: 1px solid var(--line);
+        padding: 12px 0;
+      }
+
+      .pair:first-child {
+        border-top: 0;
+      }
+
+      .command {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        width: min(760px, 100%);
+        border: 1px solid var(--ink);
+        background: #171714;
+        color: #fffdf5;
+        padding: 18px;
+        font-size: clamp(16px, 3vw, 30px);
+        overflow-wrap: anywhere;
+      }
+
+      .small-button {
+        flex: 0 0 auto;
+        border: 1px solid #fffdf5;
+        background: #fffdf5;
+        color: var(--ink);
+        padding: 10px 12px;
+      }
+
+      .json {
+        width: min(780px, 100%);
+        max-height: 320px;
+        overflow: auto;
+        border: 1px solid var(--ink);
+        background: #fffdf5;
+        padding: 18px;
+        color: var(--ink);
+        font-size: 12px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+      }
+
+      .control {
+        display: grid;
+        grid-template-rows: 1fr auto 1fr;
+        gap: 12px;
+        padding: 12px;
+      }
+
+      .square {
+        width: 100%;
+        aspect-ratio: 1;
+        border: 1px solid var(--ink);
+        background: #fffdf5;
+        box-shadow: 4px 4px 0 rgba(23, 23, 20, 0.12);
+        font-size: 24px;
+      }
+
+      .knob {
+        align-self: center;
+        justify-self: center;
+        width: 74px;
+        height: 74px;
+        border: 1px solid var(--ink);
+        border-radius: 50%;
+        background:
+          linear-gradient(90deg, transparent 48%, var(--ink) 48%, var(--ink) 52%, transparent 52%),
+          var(--plate);
+        box-shadow: inset 0 0 0 12px #d4ccba;
+      }
+
+      .foot {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        color: var(--soft);
+        font-size: 11px;
+        text-transform: lowercase;
+      }
+
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        border: 1px solid var(--ink);
+        background: var(--light);
+        color: var(--ink);
+        padding: 10px 12px;
+        box-shadow: 5px 5px 0 rgba(23, 23, 20, 0.14);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 160ms ease;
+      }
+
+      .toast.visible {
+        opacity: 1;
+      }
+
+      @media (max-width: 860px) {
+        .instrument {
+          grid-template-columns: 1fr;
+          min-height: auto;
+        }
+
+        .rail {
+          grid-template-columns: auto 1fr auto;
+          grid-template-rows: auto;
+          align-items: center;
+        }
+
+        .lights {
+          grid-template-columns: repeat(8, 22px);
+        }
+
+        .control {
+          grid-template-columns: 1fr 74px 1fr;
+          grid-template-rows: auto;
+        }
+
+        .screen {
+          min-height: 420px;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .top,
+        .input-row,
+        .pair,
+        .command {
+          grid-template-columns: 1fr;
+        }
+
+        .command {
+          display: grid;
+        }
+
+        .primary {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="top">
+        <div class="brand">
+          <h1>TraceBullet</h1>
+          <span>one issue<br />one trace</span>
+        </div>
+        <div class="prototype">prototype</div>
+      </header>
+
+      <section class="instrument" aria-label="TraceBullet prototype">
+        <aside class="rail">
+          <div>
+            <div class="meta">progress</div>
+            <div id="lights" class="lights" aria-hidden="true"></div>
+          </div>
+          <div class="sources">
+            <div class="source"><span>sentry</span><span class="dot"></span></div>
+            <div class="source"><span>github</span><span class="dot"></span></div>
+            <div class="source"><span>slack</span><span class="dot"></span></div>
+            <div class="source"><span>sql</span><span class="dot"></span></div>
+          </div>
+          <div class="tiny">local synthetic data<br />no external calls</div>
+        </aside>
+
+        <section class="stage">
+          <div class="step-label">
+            <span id="stepName">issue</span>
+            <span id="stepCount">01 / 05</span>
+          </div>
+          <div id="screen" class="screen"></div>
+          <div class="tiny" id="hint">enter moves forward. arrows move between screens.</div>
+        </section>
+
+        <nav class="control" aria-label="screen controls">
+          <button id="back" class="square" aria-label="Back">&lt;</button>
+          <div class="knob" aria-hidden="true"></div>
+          <button id="next" class="square" aria-label="Next">&gt;</button>
+        </nav>
+      </section>
+
+      <footer class="foot">
+        <span>deterministic report first</span>
+        <span>suggest, never execute</span>
+      </footer>
+    </main>
+
+    <div id="toast" class="toast">copied</div>
+
+    <script>
+      const incidents = {
+        "SENTRY-CHECKOUT-4821": {
+          id: "SENTRY-CHECKOUT-4821",
+          title: "checkout payment confirmation fails",
+          serviceTag: "checkout",
+          firstSeen: "2026-05-26T09:42:00+05:30",
+          error: "TypeError: confirmation_url is undefined",
+        },
+        "SENTRY-BILLING-7780": {
+          id: "SENTRY-BILLING-7780",
+          title: "invoice retry queue dropped job",
+          serviceTag: "billing",
+          firstSeen: "2026-05-26T10:14:00+05:30",
+          error: "QueueTimeout: invoice retry expired",
+        },
+        "SENTRY-SEARCH-1104": {
+          id: "SENTRY-SEARCH-1104",
+          title: "search results render blank page",
+          serviceTag: "search",
+          firstSeen: "2026-05-26T11:04:00+05:30",
+          error: "RenderError: result facet is undefined",
+        },
+      };
+
+      const pullRequests = [
+        { number: 1842, title: "async payment confirmation URLs", author: "maya", serviceTag: "checkout", mergedAt: "2026-05-26T09:31:00+05:30", mergeCommit: "c8a4f12" },
+        { number: 1838, title: "normalize cart currency before tax", author: "ishaan", serviceTag: "checkout", mergedAt: "2026-05-26T09:08:00+05:30", mergeCommit: "f41b66e" },
+        { number: 1840, title: "invoice retry worker batch size", author: "nora", serviceTag: "billing", mergedAt: "2026-05-26T09:46:00+05:30", mergeCommit: "b6e9901" },
+        { number: 1819, title: "refresh search facet layout", author: "leo", serviceTag: "search", mergedAt: "2026-05-26T10:18:00+05:30", mergeCommit: "ad7310b" },
+      ];
+
+      const slackMessages = [
+        { channel: "#checkout-release", postedAt: "2026-05-26T09:36:00+05:30", marker: "PR #1842", text: "PR #1842 is live. watching confirmation_url because the gateway response shape changed." },
+        { channel: "#billing-ops", postedAt: "2026-05-26T10:03:00+05:30", marker: "billing", text: "billing retry worker batch size deployed." },
+        { channel: "#search-ui", postedAt: "2026-05-26T10:35:00+05:30", marker: "PR #1819", text: "PR #1819 changed facet rendering." },
+      ];
+
+      const screens = ["issue", "suspect", "evidence", "command", "machine"];
+      const url = new URL(location.href);
+      const state = {
+        step: Math.max(0, screens.indexOf(url.searchParams.get("screen") || "issue")),
+        issueId: url.searchParams.get("issue") || "SENTRY-CHECKOUT-4821",
+      };
+
+      function minutesBetween(earlier, later) {
+        return Math.round((new Date(later) - new Date(earlier)) / 60000);
+      }
+
+      function investigate(issueId) {
+        const issue = incidents[issueId];
+        if (!issue) {
+          return {
+            status: "no sentry issue found",
+            issueId,
+            issue: null,
+            suspect: null,
+            candidates: [],
+            evidence: [],
+            missing: ["issue not present in local prototype data"],
+            command: null,
+          };
+        }
+
+        const candidates = pullRequests
+          .map((pr) => ({ ...pr, minutes: minutesBetween(pr.mergedAt, issue.firstSeen) }))
+          .filter((pr) => pr.serviceTag === issue.serviceTag && pr.minutes >= 0 && pr.minutes <= 30)
+          .sort((a, b) => a.minutes - b.minutes);
+        const suspect = candidates[0] || null;
+        const slack = suspect
+          ? slackMessages.find((message) => {
+              const marker = message.text.includes(`#${suspect.number}`) || message.text.includes(suspect.mergeCommit) || message.text.includes(suspect.serviceTag);
+              const inWindow = minutesBetween(message.postedAt, issue.firstSeen) >= 0 && minutesBetween(message.postedAt, issue.firstSeen) <= 30;
+              return marker && inWindow;
+            })
+          : null;
+        const evidence = suspect
+          ? [
+              ["service", `${issue.serviceTag} appears on issue and PR #${suspect.number}`],
+              ["time", `merged ${suspect.minutes} minutes before first seen`],
+              ["commit", suspect.mergeCommit],
+              ...(slack ? [["slack", `${slack.channel}: ${slack.text}`]] : []),
+            ]
+          : [];
+        return {
+          status: suspect ? "suspected causing pr found" : "no suspected causing pr found",
+          issueId,
+          issue,
+          suspect,
+          candidates,
+          evidence,
+          missing: suspect && slack ? [] : suspect ? ["no slack marker found"] : ["no candidate pr matched service and time"],
+          command: suspect ? `git revert ${suspect.mergeCommit}` : null,
+          sql: `select candidate prs where issue_id = '${issueId}' and service_tag matches and merged_at is within 30 minutes before first_seen;`,
+        };
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      function syncUrl() {
+        const next = new URL(location.href);
+        next.searchParams.set("screen", screens[state.step]);
+        next.searchParams.set("issue", state.issueId);
+        history.replaceState(null, "", next);
+      }
+
+      function go(offset) {
+        state.step = Math.max(0, Math.min(screens.length - 1, state.step + offset));
+        syncUrl();
+        render();
+      }
+
+      function setIssue(issueId) {
+        state.issueId = issueId.trim();
+        state.step = 1;
+        syncUrl();
+        render();
+      }
+
+      function screenIssue(result) {
+        return `
+          <div>
+            <div class="kicker">screen one. choose the issue.</div>
+            <h2 class="title">what failed?</h2>
+          </div>
+          <div class="input-row">
+            <input id="issueInput" class="issue-input" value="${escapeHtml(state.issueId)}" aria-label="Sentry Issue ID" />
+            <button id="scan" class="primary">scan</button>
+          </div>
+          <div class="samples">
+            <button class="sample" data-issue="SENTRY-CHECKOUT-4821">checkout</button>
+            <button class="sample" data-issue="SENTRY-BILLING-7780">billing</button>
+            <button class="sample" data-issue="SENTRY-SEARCH-1104">search</button>
+          </div>
+        `;
+      }
+
+      function screenSuspect(result) {
+        const pr = result.suspect;
+        return pr
+          ? `
+            <div class="result-card">
+              <div class="kicker">screen two. read the suspect.</div>
+              <div class="huge">#${pr.number}</div>
+              <p class="sentence">${escapeHtml(pr.title)}</p>
+              <div class="pair"><span class="tiny">author</span><span>${escapeHtml(pr.author)}</span></div>
+              <div class="pair"><span class="tiny">service</span><span>${escapeHtml(pr.serviceTag)}</span></div>
+              <div class="pair"><span class="tiny">time</span><span>${pr.minutes} minutes before first seen</span></div>
+            </div>
+            <button class="primary" data-next="1">evidence</button>
+          `
+          : `
+            <div>
+              <div class="kicker">screen two. no guess.</div>
+              <h2 class="title">no suspect.</h2>
+              <p class="sentence">${escapeHtml(result.missing.join(". "))}</p>
+            </div>
+            <button class="primary" data-next="1">details</button>
+          `;
+      }
+
+      function screenEvidence(result) {
+        return `
+          <div>
+            <div class="kicker">screen three. check the proof.</div>
+            <h2 class="title">evidence.</h2>
+          </div>
+          <div class="result-card">
+            ${result.evidence.map(([name, detail]) => `<div class="pair"><span class="tiny">${escapeHtml(name)}</span><span>${escapeHtml(detail)}</span></div>`).join("") || `<div class="pair"><span class="tiny">missing</span><span>${escapeHtml(result.missing.join(". "))}</span></div>`}
+          </div>
+          <button class="primary" data-next="1">command</button>
+        `;
+      }
+
+      function screenCommand(result) {
+        return `
+          <div>
+            <div class="kicker">screen four. choose the next human action.</div>
+            <h2 class="title">${result.command ? "suggested revert." : "no command."}</h2>
+          </div>
+          <div class="command">
+            <span>${escapeHtml(result.command || "no revert command without a suspect")}</span>
+            ${result.command ? `<button id="copy" class="small-button">copy</button>` : ""}
+          </div>
+          <button class="primary" data-next="1">machine report</button>
+        `;
+      }
+
+      function screenMachine(result) {
+        return `
+          <div>
+            <div class="kicker">screen five. same facts for code.</div>
+            <h2 class="title">machine report.</h2>
+          </div>
+          <pre class="json">${escapeHtml(JSON.stringify(result, null, 2))}</pre>
+          <button class="primary" data-next="-4">start again</button>
+        `;
+      }
+
+      function renderLights() {
+        const lights = document.getElementById("lights");
+        lights.innerHTML = Array.from({ length: 16 }, (_, index) => {
+          const className = index < state.step ? "light done" : index === state.step ? "light on" : "light";
+          return `<div class="${className}"></div>`;
+        }).join("");
+      }
+
+      function render() {
+        const result = investigate(state.issueId);
+        const name = screens[state.step];
+        document.getElementById("stepName").textContent = name;
+        document.getElementById("stepCount").textContent = `${String(state.step + 1).padStart(2, "0")} / ${String(screens.length).padStart(2, "0")}`;
+        const screen = document.getElementById("screen");
+        screen.innerHTML =
+          name === "issue" ? screenIssue(result) :
+          name === "suspect" ? screenSuspect(result) :
+          name === "evidence" ? screenEvidence(result) :
+          name === "command" ? screenCommand(result) :
+          screenMachine(result);
+        renderLights();
+        wireScreen();
+      }
+
+      function wireScreen() {
+        const input = document.getElementById("issueInput");
+        const scan = document.getElementById("scan");
+        if (scan && input) {
+          scan.addEventListener("click", () => setIssue(input.value));
+          input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") setIssue(input.value);
+          });
+        }
+        document.querySelectorAll(".sample").forEach((button) => {
+          button.addEventListener("click", () => setIssue(button.dataset.issue));
+        });
+        document.querySelectorAll("[data-next]").forEach((button) => {
+          button.addEventListener("click", () => go(Number(button.dataset.next)));
+        });
+        const copy = document.getElementById("copy");
+        if (copy) {
+          copy.addEventListener("click", async () => {
+            const result = investigate(state.issueId);
+            if (navigator.clipboard) await navigator.clipboard.writeText(result.command);
+            const toast = document.getElementById("toast");
+            toast.classList.add("visible");
+            setTimeout(() => toast.classList.remove("visible"), 900);
+          });
+        }
+      }
+
+      document.getElementById("back").addEventListener("click", () => go(-1));
+      document.getElementById("next").addEventListener("click", () => go(1));
+      document.addEventListener("keydown", (event) => {
+        const active = document.activeElement;
+        if (active && active.tagName === "INPUT") return;
+        if (event.key === "ArrowLeft") go(-1);
+        if (event.key === "ArrowRight" || event.key === "Enter") go(1);
+      });
+
+      render();
+    </script>
+  </body>
+</html>
