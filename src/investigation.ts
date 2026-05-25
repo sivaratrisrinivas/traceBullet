@@ -113,3 +113,7 @@ export function formatDeterministicReport(report: InvestigationReport): string {
     `- investigation window: ${runtime.investigationWindowMinutes} minutes`
   ].join("\n");
 }
+
+export function formatMachineReport(report: InvestigationReport): string {
+  return JSON.stringify(report, null, 2);
+}

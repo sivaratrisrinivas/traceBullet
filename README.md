@@ -10,6 +10,12 @@ The first implemented slice is a CLI Investigation Command backed by Local Proto
 node src/cli.ts investigate SENTRY-TB-1001
 ```
 
+Automation and future UI surfaces can request the same investigation facts as JSON:
+
+```bash
+node src/cli.ts investigate SENTRY-TB-1001 --json
+```
+
 For the known prototype Sentry issue, TraceBullet:
 
 - Loads local Sentry, GitHub PR, and Slack records.
@@ -17,6 +23,7 @@ For the known prototype Sentry issue, TraceBullet:
 - Filters PRs to the 30-minute Investigation Window before the Sentry issue first appeared.
 - Selects the closest prior merge as the Suspected Causing PR.
 - Prints a human-readable Deterministic Report with Sentry issue, Suspected Causing PR, Evidence, and Runtime sections.
+- Prints a Machine Report JSON shape with the same core facts when `--json` is passed.
 
 ## Why
 
@@ -38,6 +45,12 @@ Run the successful local investigation:
 
 ```bash
 node src/cli.ts investigate SENTRY-TB-1001
+```
+
+Run the machine-readable investigation:
+
+```bash
+node src/cli.ts investigate SENTRY-TB-1001 --json
 ```
 
 Run tests:

@@ -22,3 +22,25 @@ test("investigation command prints a deterministic report for a known Sentry iss
   assert.match(stdout, /Runtime/);
   assert.match(stdout, /source: Local Prototype Data/);
 });
+
+test("investigation command prints a machine report when JSON output is requested", async () => {
+  const result = runTraceBulletCommand([
+    "investigate",
+    "SENTRY-TB-1001",
+    "--json"
+  ]);
+
+  assert.equal(result.exitCode, 0);
+
+  const machineReport = JSON.parse(result.stdout);
+
+  assert.equal(machineReport.sentryIssue.id, "SENTRY-TB-1001");
+  assert.equal(machineReport.sentryIssue.serviceTag, "checkout");
+  assert.equal(machineReport.suspectedCausingPr.number, 42);
+  assert.equal(machineReport.suspectedCausingPr.mergeCommit, "f00db42");
+  assert.equal(machineReport.evidence.serviceMatch, "checkout");
+  assert.equal(machineReport.evidence.minutesBeforeFirstSeen, 5);
+  assert.equal(machineReport.evidence.slackContext.channel, "#checkout-builds");
+  assert.equal(machineReport.runtime.source, "Local Prototype Data");
+  assert.equal(machineReport.runtime.investigationWindowMinutes, 30);
+});

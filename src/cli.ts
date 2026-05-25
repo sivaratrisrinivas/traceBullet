@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import { localPrototypeData } from "./localPrototypeData.ts";
 import {
   formatDeterministicReport,
+  formatMachineReport,
   investigateSentryIssue
 } from "./investigation.ts";
 
@@ -11,10 +12,11 @@ export type CommandResult = {
   exitCode: number;
 };
 
-const USAGE = "Usage: node src/cli.ts investigate <SENTRY_ISSUE_ID>";
+const USAGE = "Usage: node src/cli.ts investigate <SENTRY_ISSUE_ID> [--json]";
 
 export function runTraceBulletCommand(args: string[]): CommandResult {
-  const [command, sentryIssueId] = args;
+  const [command, sentryIssueId, ...flags] = args;
+  const outputFormat = flags.includes("--json") ? "json" : "deterministic";
 
   if (command !== "investigate" || !sentryIssueId) {
     return {
@@ -35,7 +37,7 @@ export function runTraceBulletCommand(args: string[]): CommandResult {
   }
 
   return {
-    stdout: formatDeterministicReport(report),
+    stdout: outputFormat === "json" ? formatMachineReport(report) : formatDeterministicReport(report),
     stderr: "",
     exitCode: 0
   };
