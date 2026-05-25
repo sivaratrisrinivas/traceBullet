@@ -11,6 +11,10 @@ const MS_PER_MINUTE = 60 * 1000;
 export type InvestigationReport = {
   sentryIssue: SentryIssue;
   suspectedCausingPr: PullRequest;
+  otherCandidatePrs: Array<{
+    pullRequest: PullRequest;
+    minutesBeforeFirstSeen: number;
+  }>;
   evidence: {
     serviceMatch: string;
     minutesBeforeFirstSeen: number;
@@ -68,6 +72,7 @@ export function investigateSentryIssue(
   return {
     sentryIssue,
     suspectedCausingPr,
+    otherCandidatePrs: candidatePrs.slice(1),
     evidence: {
       serviceMatch: sentryIssue.serviceTag,
       minutesBeforeFirstSeen: closestPriorCandidate.minutesBeforeFirstSeen,
@@ -81,10 +86,19 @@ export function investigateSentryIssue(
 }
 
 export function formatDeterministicReport(report: InvestigationReport): string {
-  const { sentryIssue, suspectedCausingPr, evidence, runtime } = report;
+  const { sentryIssue, suspectedCausingPr, otherCandidatePrs, evidence, runtime } = report;
   const slackContext = evidence.slackContext
     ? `${evidence.slackContext.channel} ${evidence.slackContext.sentAt} ${evidence.slackContext.text}`
     : "missing";
+  const otherCandidateLines =
+    otherCandidatePrs.length > 0
+      ? otherCandidatePrs.flatMap(({ pullRequest, minutesBeforeFirstSeen }) => [
+          `- PR: #${pullRequest.number}`,
+          `  title: ${pullRequest.title}`,
+          `  service tag: ${pullRequest.serviceTag}`,
+          `  merged ${minutesBeforeFirstSeen} minutes before first seen`
+        ])
+      : ["- none"];
 
   return [
     "Deterministic Report",
@@ -107,6 +121,9 @@ export function formatDeterministicReport(report: InvestigationReport): string {
     `- Service Match: ${evidence.serviceMatch}`,
     `- Time Match: merged ${evidence.minutesBeforeFirstSeen} minutes before first seen`,
     `- Slack Context: ${slackContext}`,
+    "",
+    "Other Candidate PRs",
+    ...otherCandidateLines,
     "",
     "Runtime",
     `- source: ${runtime.source}`,

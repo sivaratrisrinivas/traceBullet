@@ -34,6 +34,12 @@ export const localPrototypeData: LocalPrototypeData = {
       title: "Checkout payment confirmation fails after submit",
       serviceTag: "checkout",
       firstSeenAt: "2026-05-25T10:35:00.000Z"
+    },
+    {
+      id: "SENTRY-TB-1002",
+      title: "Billing receipt webhook rejects settled invoice",
+      serviceTag: "billing",
+      firstSeenAt: "2026-05-25T11:00:00.000Z"
     }
   ],
   pullRequests: [
@@ -60,6 +66,14 @@ export const localPrototypeData: LocalPrototypeData = {
       serviceTag: "catalog",
       mergedAt: "2026-05-25T10:32:00.000Z",
       mergeCommit: "cafe043"
+    },
+    {
+      number: 51,
+      title: "Normalize settled invoice webhook payloads",
+      author: "lee",
+      serviceTag: "billing",
+      mergedAt: "2026-05-25T10:48:00.000Z",
+      mergeCommit: "feed051"
     }
   ],
   slackMessages: [
@@ -68,6 +82,12 @@ export const localPrototypeData: LocalPrototypeData = {
       author: "niko",
       sentAt: "2026-05-25T10:31:00.000Z",
       text: "Merged PR #42 for checkout confirmation handling; watching payment intent edge cases."
+    },
+    {
+      channel: "#billing-builds",
+      author: "lee",
+      sentAt: "2026-05-25T11:03:00.000Z",
+      text: "PR #51 may be related to the billing webhook failures that just appeared."
     }
   ]
 };
