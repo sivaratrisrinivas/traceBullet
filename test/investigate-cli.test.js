@@ -24,8 +24,13 @@ test("investigation command prints a deterministic report for a known Sentry iss
   assert.match(stdout, /merged 25 minutes before first seen/);
   assert.match(stdout, /Suggested Revert Command/);
   assert.match(stdout, /git revert f00db42/);
+  assert.match(stdout, /Query Representation/);
+  assert.match(stdout, /Investigation Query Template/);
+  assert.match(stdout, /exact Service Tag match/);
+  assert.match(stdout, /30-minute Investigation Window/);
   assert.match(stdout, /Runtime/);
   assert.match(stdout, /source: Local Prototype Data/);
+  assert.match(stdout, /duration: \d+ ms/);
 });
 
 test("investigation command prints a machine report when JSON output is requested", async () => {
@@ -49,8 +54,15 @@ test("investigation command prints a machine report when JSON output is requeste
   assert.equal(machineReport.evidence.serviceMatch, "checkout");
   assert.equal(machineReport.evidence.minutesBeforeFirstSeen, 5);
   assert.equal(machineReport.evidence.slackContext.channel, "#checkout-builds");
+  assert.equal(machineReport.queryRepresentation.source, "Investigation Query Template");
+  assert.match(
+    machineReport.queryRepresentation.description,
+    /exact Service Tag match.*30-minute Investigation Window/
+  );
   assert.equal(machineReport.runtime.source, "Local Prototype Data");
   assert.equal(machineReport.runtime.investigationWindowMinutes, 30);
+  assert.equal(typeof machineReport.runtime.durationMs, "number");
+  assert.ok(machineReport.runtime.durationMs >= 0);
 });
 
 test("investigation command shows missing Slack Context without failing a valid suspect", async () => {

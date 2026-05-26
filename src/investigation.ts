@@ -7,6 +7,11 @@ import type {
 
 const INVESTIGATION_WINDOW_MINUTES = 30;
 const MS_PER_MINUTE = 60 * 1000;
+const LOCAL_PROTOTYPE_QUERY_REPRESENTATION = {
+  source: "Investigation Query Template",
+  description:
+    "Find pull requests with an exact Service Tag match merged inside the 30-minute Investigation Window before first seen."
+} as const;
 
 export type InvestigationReport = {
   sentryIssue: SentryIssue;
@@ -24,15 +29,21 @@ export type InvestigationReport = {
     minutesBeforeFirstSeen?: number;
     slackContext?: SlackMessage;
   };
+  queryRepresentation: {
+    source: "Investigation Query Template";
+    description: string;
+  };
   runtime: {
     source: "Local Prototype Data";
     investigationWindowMinutes: number;
+    durationMs: number;
   };
 };
 
 export function investigateSentryIssue(
   sentryIssueId: string,
-  data: LocalPrototypeData
+  data: LocalPrototypeData,
+  durationMs = 0
 ): InvestigationReport | undefined {
   const sentryIssue = data.sentryIssues.find((issue) => issue.id === sentryIssueId);
 
@@ -73,9 +84,11 @@ export function investigateSentryIssue(
         timeMatch: !hasTimeMatch
       },
       evidence: {},
+      queryRepresentation: LOCAL_PROTOTYPE_QUERY_REPRESENTATION,
       runtime: {
         source: "Local Prototype Data",
-        investigationWindowMinutes: INVESTIGATION_WINDOW_MINUTES
+        investigationWindowMinutes: INVESTIGATION_WINDOW_MINUTES,
+        durationMs
       }
     };
   }
@@ -107,15 +120,24 @@ export function investigateSentryIssue(
       minutesBeforeFirstSeen: closestPriorCandidate.minutesBeforeFirstSeen,
       slackContext
     },
+    queryRepresentation: LOCAL_PROTOTYPE_QUERY_REPRESENTATION,
     runtime: {
       source: "Local Prototype Data",
-      investigationWindowMinutes: INVESTIGATION_WINDOW_MINUTES
+      investigationWindowMinutes: INVESTIGATION_WINDOW_MINUTES,
+      durationMs
     }
   };
 }
 
 export function formatDeterministicReport(report: InvestigationReport): string {
-  const { sentryIssue, suspectedCausingPr, otherCandidatePrs, evidence, runtime } = report;
+  const {
+    sentryIssue,
+    suspectedCausingPr,
+    otherCandidatePrs,
+    evidence,
+    queryRepresentation,
+    runtime
+  } = report;
   const suspectedCausingPrLines = suspectedCausingPr
     ? [
         "Suspected Causing PR",
@@ -178,9 +200,14 @@ export function formatDeterministicReport(report: InvestigationReport): string {
     ...otherCandidateLines,
     ...suggestedRevertLines,
     "",
+    "Query Representation",
+    `- source: ${queryRepresentation.source}`,
+    `- description: ${queryRepresentation.description}`,
+    "",
     "Runtime",
     `- source: ${runtime.source}`,
-    `- investigation window: ${runtime.investigationWindowMinutes} minutes`
+    `- investigation window: ${runtime.investigationWindowMinutes} minutes`,
+    `- duration: ${runtime.durationMs} ms`
   ].join("\n");
 }
 

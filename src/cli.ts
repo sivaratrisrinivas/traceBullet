@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { performance } from "node:perf_hooks";
 import { localPrototypeData } from "./localPrototypeData.ts";
 import {
   formatDeterministicReport,
@@ -26,6 +27,7 @@ export function runTraceBulletCommand(args: string[]): CommandResult {
     };
   }
 
+  const startedAt = performance.now();
   const report = investigateSentryIssue(sentryIssueId, localPrototypeData);
 
   if (!report) {
@@ -36,8 +38,19 @@ export function runTraceBulletCommand(args: string[]): CommandResult {
     };
   }
 
+  const reportWithRuntime = {
+    ...report,
+    runtime: {
+      ...report.runtime,
+      durationMs: Math.max(0, Math.round(performance.now() - startedAt))
+    }
+  };
+
   return {
-    stdout: outputFormat === "json" ? formatMachineReport(report) : formatDeterministicReport(report),
+    stdout:
+      outputFormat === "json"
+        ? formatMachineReport(reportWithRuntime)
+        : formatDeterministicReport(reportWithRuntime),
     stderr: "",
     exitCode: 0
   };
