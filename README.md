@@ -50,6 +50,18 @@ TraceBullet avoids guessing. The MVP uses deterministic matching rules instead o
 
 This keeps the first product surface small, testable, and ready to swap from Local Prototype Data to sandbox Coral sources later.
 
+## Accepted prototype direction
+
+The accepted UI direction is preserved in `prototypes/tracebullet-app-prototype/NOTES.md` while the implementation stays CLI-first. The dashboard is not part of the first implementation.
+
+Future dashboard work should keep the one-action-per-screen instrument direction from the prototype:
+
+- Choose the Sentry Issue ID maps to the CLI investigation input.
+- Read the Suspected Causing PR maps to the report's selected suspect.
+- Check Evidence maps to Service Match, Time Match, Slack Context, and missing proof.
+- Copy the Suggested Revert Command maps to the report's remediation command section.
+- Inspect the Machine Report maps to the `--json` output used by automation and future UI rendering.
+
 ## How
 
 Requirements:
