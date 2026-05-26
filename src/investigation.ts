@@ -88,7 +88,9 @@ export function investigateSentryIssue(
       sentAt >= firstSeenAt - INVESTIGATION_WINDOW_MINUTES * MS_PER_MINUTE &&
       (message.text.includes(`#${suspectedCausingPr.number}`) ||
         message.text.includes(suspectedCausingPr.serviceTag) ||
-        message.text.includes(suspectedCausingPr.mergeCommit))
+        (suspectedCausingPr.mergeCommit
+          ? message.text.includes(suspectedCausingPr.mergeCommit)
+          : false))
     );
   });
 
@@ -122,7 +124,7 @@ export function formatDeterministicReport(report: InvestigationReport): string {
         `- author: ${suspectedCausingPr.author}`,
         `- service tag: ${suspectedCausingPr.serviceTag}`,
         `- merged at: ${suspectedCausingPr.mergedAt}`,
-        `- merge commit: ${suspectedCausingPr.mergeCommit}`
+        `- merge commit: ${suspectedCausingPr.mergeCommit ?? "missing"}`
       ]
     : ["No Suspected Causing PR Found"];
   const proofLines = suspectedCausingPr
@@ -148,6 +150,15 @@ export function formatDeterministicReport(report: InvestigationReport): string {
           `  merged ${minutesBeforeFirstSeen} minutes before first seen`
         ])
       : ["- none"];
+  const suggestedRevertLines = suspectedCausingPr
+    ? [
+        "",
+        "Suggested Revert Command",
+        suspectedCausingPr.mergeCommit
+          ? `- git revert ${suspectedCausingPr.mergeCommit}`
+          : "- unavailable: missing merge commit"
+      ]
+    : [];
 
   return [
     "Deterministic Report",
@@ -165,6 +176,7 @@ export function formatDeterministicReport(report: InvestigationReport): string {
     "",
     "Other Candidate PRs",
     ...otherCandidateLines,
+    ...suggestedRevertLines,
     "",
     "Runtime",
     `- source: ${runtime.source}`,

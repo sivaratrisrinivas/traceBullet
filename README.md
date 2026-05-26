@@ -25,7 +25,7 @@ For the known prototype Sentry issue, TraceBullet:
 - Lists other Candidate PRs separately from the Suspected Causing PR.
 - Shows missing Slack Context as an evidence gap without failing the investigation.
 - Returns No Suspected Causing PR Found when Service Match, Time Match, or both are missing.
-- Prints a human-readable Deterministic Report with Sentry issue, Suspected Causing PR, Evidence, Other Candidate PRs, and Runtime sections.
+- Prints a human-readable Deterministic Report with Sentry issue, Suspected Causing PR, Evidence, Other Candidate PRs, Suggested Revert Command, and Runtime sections.
 - Prints a Machine Report JSON shape with the same core facts when `--json` is passed.
 
 ## Why
@@ -36,6 +36,7 @@ TraceBullet avoids guessing. The MVP uses deterministic matching rules instead o
 - A Time Match requires the pull request to be merged before first seen and inside the 30-minute Investigation Window.
 - Slack Context can strengthen Evidence, but it is not required to identify a Suspected Causing PR.
 - Slack Context only counts when a Slack Marker appears before the Sentry issue first appears.
+- Suggested Revert Command is a copyable next step only. TraceBullet prints the command but does not run rollback commands or mutate the repository.
 
 This keeps the first product surface small, testable, and ready to swap from Local Prototype Data to sandbox Coral sources later.
 
@@ -77,10 +78,18 @@ These no-suspect fixtures cover the three missing-proof outcomes:
 - `SENTRY-TB-1004`: Service Match is present, Time Match is missing.
 - `SENTRY-TB-1005`: both Service Match and Time Match are missing.
 
+Run an investigation where a Suspected Causing PR is found but commit information is missing:
+
+```bash
+node src/cli.ts investigate SENTRY-TB-1006
+```
+
+TraceBullet marks the Suggested Revert Command unavailable when there is no merge commit.
+
 Run tests:
 
 ```bash
 npm test
 ```
 
-The tests exercise the public command behavior and verify successful and no-suspect investigation reports without asserting private implementation details.
+The tests exercise the public command behavior and verify successful, no-suspect, and unavailable Suggested Revert Command reports without asserting private implementation details.

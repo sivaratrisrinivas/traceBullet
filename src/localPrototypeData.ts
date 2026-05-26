@@ -11,7 +11,7 @@ export type PullRequest = {
   author: string;
   serviceTag: string;
   mergedAt: string;
-  mergeCommit: string;
+  mergeCommit?: string;
 };
 
 export type SlackMessage = {
@@ -58,6 +58,12 @@ export const localPrototypeData: LocalPrototypeData = {
       title: "Search indexing worker drops queued updates",
       serviceTag: "search",
       firstSeenAt: "2026-05-25T12:00:00.000Z"
+    },
+    {
+      id: "SENTRY-TB-1006",
+      title: "Notification digest job retries indefinitely",
+      serviceTag: "notifications",
+      firstSeenAt: "2026-05-25T12:30:00.000Z"
     }
   ],
   pullRequests: [
@@ -92,6 +98,13 @@ export const localPrototypeData: LocalPrototypeData = {
       serviceTag: "billing",
       mergedAt: "2026-05-25T10:48:00.000Z",
       mergeCommit: "feed051"
+    },
+    {
+      number: 61,
+      title: "Batch notification digest recipients",
+      author: "jo",
+      serviceTag: "notifications",
+      mergedAt: "2026-05-25T12:20:00.000Z"
     }
   ],
   slackMessages: [
