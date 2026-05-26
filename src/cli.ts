@@ -1,5 +1,10 @@
 import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
+import {
+  type CoralQueryRunner,
+  buildLiveCoralInvestigationQuery,
+  loadCoralSandboxData
+} from "./coralSandboxData.ts";
 import { localPrototypeData } from "./localPrototypeData.ts";
 import {
   formatDeterministicReport,
@@ -13,11 +18,17 @@ export type CommandResult = {
   exitCode: number;
 };
 
-const USAGE = "Usage: node src/cli.ts investigate <SENTRY_ISSUE_ID> [--json]";
+const USAGE =
+  "Usage: node src/cli.ts investigate <SENTRY_ISSUE_ID> [--json] [--source local|coral]";
 
-export function runTraceBulletCommand(args: string[]): CommandResult {
+export function runTraceBulletCommand(
+  args: string[],
+  options: { env?: NodeJS.ProcessEnv; runCoralQuery?: CoralQueryRunner } = {}
+): CommandResult {
   const [command, sentryIssueId, ...flags] = args;
   const outputFormat = flags.includes("--json") ? "json" : "deterministic";
+  const source = readSourceFlag(flags);
+  const env = options.env ?? process.env;
 
   if (command !== "investigate" || !sentryIssueId) {
     return {
@@ -28,7 +39,33 @@ export function runTraceBulletCommand(args: string[]): CommandResult {
   }
 
   const startedAt = performance.now();
-  const report = investigateSentryIssue(sentryIssueId, localPrototypeData);
+  const reportMetadata =
+    source === "coral"
+      ? {
+          queryRepresentation: {
+            source: "Live Coral Query" as const,
+            description: buildLiveCoralInvestigationQuery(sentryIssueId)
+          },
+          runtimeSource: "Coral Sandbox Sources" as const
+        }
+      : undefined;
+
+  let data = localPrototypeData;
+
+  try {
+    data =
+      source === "coral"
+        ? loadCoralSandboxData(sentryIssueId, env, options.runCoralQuery)
+        : localPrototypeData;
+  } catch (error) {
+    return {
+      stdout: "",
+      stderr: error instanceof Error ? error.message : "Failed to load investigation data.",
+      exitCode: 1
+    };
+  }
+
+  const report = investigateSentryIssue(sentryIssueId, data, 0, reportMetadata);
 
   if (!report) {
     return {
@@ -54,6 +91,19 @@ export function runTraceBulletCommand(args: string[]): CommandResult {
     stderr: "",
     exitCode: 0
   };
+}
+
+function readSourceFlag(flags: string[]): "local" | "coral" {
+  const sourceFlag = flags.find((flag) => flag.startsWith("--source="));
+
+  if (sourceFlag) {
+    return sourceFlag.replace("--source=", "") === "coral" ? "coral" : "local";
+  }
+
+  const sourceFlagIndex = flags.indexOf("--source");
+  const sourceFlagValue = sourceFlagIndex >= 0 ? flags[sourceFlagIndex + 1] : undefined;
+
+  return sourceFlagValue === "coral" ? "coral" : "local";
 }
 
 const isDirectExecution = process.argv[1] === fileURLToPath(import.meta.url);

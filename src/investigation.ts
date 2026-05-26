@@ -30,11 +30,11 @@ export type InvestigationReport = {
     slackContext?: SlackMessage;
   };
   queryRepresentation: {
-    source: "Investigation Query Template";
+    source: "Investigation Query Template" | "Live Coral Query";
     description: string;
   };
   runtime: {
-    source: "Local Prototype Data";
+    source: "Local Prototype Data" | "Coral Sandbox Sources";
     investigationWindowMinutes: number;
     durationMs: number;
   };
@@ -43,7 +43,11 @@ export type InvestigationReport = {
 export function investigateSentryIssue(
   sentryIssueId: string,
   data: LocalPrototypeData,
-  durationMs = 0
+  durationMs = 0,
+  reportMetadata = {
+    queryRepresentation: LOCAL_PROTOTYPE_QUERY_REPRESENTATION,
+    runtimeSource: "Local Prototype Data" as const
+  }
 ): InvestigationReport | undefined {
   const sentryIssue = data.sentryIssues.find((issue) => issue.id === sentryIssueId);
 
@@ -84,9 +88,9 @@ export function investigateSentryIssue(
         timeMatch: !hasTimeMatch
       },
       evidence: {},
-      queryRepresentation: LOCAL_PROTOTYPE_QUERY_REPRESENTATION,
+      queryRepresentation: reportMetadata.queryRepresentation,
       runtime: {
-        source: "Local Prototype Data",
+        source: reportMetadata.runtimeSource,
         investigationWindowMinutes: INVESTIGATION_WINDOW_MINUTES,
         durationMs
       }
@@ -120,9 +124,9 @@ export function investigateSentryIssue(
       minutesBeforeFirstSeen: closestPriorCandidate.minutesBeforeFirstSeen,
       slackContext
     },
-    queryRepresentation: LOCAL_PROTOTYPE_QUERY_REPRESENTATION,
+    queryRepresentation: reportMetadata.queryRepresentation,
     runtime: {
-      source: "Local Prototype Data",
+      source: reportMetadata.runtimeSource,
       investigationWindowMinutes: INVESTIGATION_WINDOW_MINUTES,
       durationMs
     }

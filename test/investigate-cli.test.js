@@ -65,6 +65,162 @@ test("investigation command prints a machine report when JSON output is requeste
   assert.ok(machineReport.runtime.durationMs >= 0);
 });
 
+test("investigation command can use Coral-backed Sandbox Sources for the same machine report", async () => {
+  const result = runTraceBulletCommand(
+    [
+      "investigate",
+      "SENTRY-TB-1001",
+      "--source",
+      "coral",
+      "--json"
+    ],
+    {
+      runCoralQuery: () =>
+        JSON.stringify({
+          sentryIssues: [
+            {
+              id: "SENTRY-TB-1001",
+              title: "Checkout payment confirmation fails after submit",
+              serviceTag: "checkout",
+              firstSeenAt: "2026-05-25T10:35:00.000Z"
+            }
+          ],
+          pullRequests: [
+            {
+              number: 42,
+              title: "Route checkout confirmation through payment intent status",
+              author: "niko",
+              serviceTag: "checkout",
+              mergedAt: "2026-05-25T10:30:00.000Z",
+              mergeCommit: "f00db42"
+            }
+          ],
+          slackMessages: [
+            {
+              channel: "#checkout-builds",
+              author: "niko",
+              sentAt: "2026-05-25T10:31:00.000Z",
+              text: "Merged PR #42 for checkout confirmation handling; watching payment intent edge cases."
+            }
+          ]
+        })
+    }
+  );
+
+  assert.equal(result.exitCode, 0);
+
+  const machineReport = JSON.parse(result.stdout);
+
+  assert.equal(machineReport.sentryIssue.id, "SENTRY-TB-1001");
+  assert.equal(machineReport.suspectedCausingPr.number, 42);
+  assert.equal(machineReport.evidence.serviceMatch, "checkout");
+  assert.equal(machineReport.evidence.minutesBeforeFirstSeen, 5);
+  assert.equal(machineReport.evidence.slackContext.channel, "#checkout-builds");
+  assert.equal(machineReport.queryRepresentation.source, "Live Coral Query");
+  assert.match(machineReport.queryRepresentation.description, /github_sandbox_pull_requests/);
+  assert.equal(machineReport.runtime.source, "Coral Sandbox Sources");
+});
+
+test("investigation command normalizes Live Coral Query rows", async () => {
+  const result = runTraceBulletCommand(
+    [
+      "investigate",
+      "SENTRY-TB-1001",
+      "--source=coral",
+      "--json"
+    ],
+    {
+      runCoralQuery: () =>
+        JSON.stringify([
+          {
+            recordSet: "sentryIssues",
+            id: "SENTRY-TB-1001",
+            title: "Checkout payment confirmation fails after submit",
+            serviceTag: "checkout",
+            firstSeenAt: "2026-05-25T10:35:00.000Z"
+          },
+          {
+            recordSet: "pullRequests",
+            number: 42,
+            title: "Route checkout confirmation through payment intent status",
+            author: "niko",
+            serviceTag: "checkout",
+            mergedAt: "2026-05-25T10:30:00.000Z",
+            mergeCommit: "f00db42"
+          },
+          {
+            recordSet: "slackMessages",
+            channel: "#checkout-builds",
+            author: "niko",
+            sentAt: "2026-05-25T10:31:00.000Z",
+            text: "Merged PR #42 for checkout confirmation handling; watching payment intent edge cases."
+          }
+        ])
+    }
+  );
+
+  assert.equal(result.exitCode, 0);
+
+  const machineReport = JSON.parse(result.stdout);
+
+  assert.equal(machineReport.suspectedCausingPr.number, 42);
+  assert.equal(machineReport.evidence.slackContext.channel, "#checkout-builds");
+});
+
+test("investigation command fails clearly when Coral source is not configured", async () => {
+  const result = runTraceBulletCommand(
+    [
+      "investigate",
+      "SENTRY-TB-1001",
+      "--source",
+      "coral"
+    ],
+    {
+      env: {}
+    }
+  );
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.stdout, "");
+  assert.match(result.stderr, /TRACEBULLET_CORAL_QUERY_COMMAND/);
+  assert.match(result.stderr, /sandbox GitHub, Sentry, and Slack sources/);
+});
+
+test("investigation command passes the Sentry Issue ID into the Live Coral Query", async () => {
+  let receivedQuery = "";
+
+  const result = runTraceBulletCommand(
+    [
+      "investigate",
+      "SENTRY-TB-1001",
+      "--source",
+      "coral",
+      "--json"
+    ],
+    {
+      runCoralQuery: (query) => {
+        receivedQuery = query;
+
+        return JSON.stringify({
+          sentryIssues: [
+            {
+              id: "SENTRY-TB-1001",
+              title: "Checkout payment confirmation fails after submit",
+              serviceTag: "checkout",
+              firstSeenAt: "2026-05-25T10:35:00.000Z"
+            }
+          ],
+          pullRequests: [],
+          slackMessages: []
+        });
+      }
+    }
+  );
+
+  assert.equal(result.exitCode, 0);
+  assert.match(receivedQuery, /WHERE issue_id = 'SENTRY-TB-1001'/);
+});
+
 test("investigation command shows missing Slack Context without failing a valid suspect", async () => {
   const result = runTraceBulletCommand([
     "investigate",
