@@ -64,6 +64,10 @@ _Avoid_: Demo ecommerce app, real outage simulator
 A real external tool account, repository, project, workspace, or channel used only for TraceBullet demo data.
 _Avoid_: Production source, private company data
 
+**Sandbox Source Scope**:
+The explicit repository and channel boundaries TraceBullet uses when querying Sandbox Sources, such as a GitHub owner/repo and Slack channel ID.
+_Avoid_: Organization-wide scan, workspace-wide scan, implicit source selection
+
 **Live Coral Query**:
 The real SQL query TraceBullet runs through Coral during an investigation.
 _Avoid_: Precomputed result, LLM-only matching
@@ -116,6 +120,7 @@ _Avoid_: Chat response, loose paragraph
 - **Synthetic Incident Data** provides the demo records for GitHub, Sentry, and Slack.
 - A **Sentry Issue Generator** creates the Sentry part of **Synthetic Incident Data**.
 - **Synthetic Incident Data** must live in **Sandbox Sources**.
+- A **Live Coral Query** must use a bounded **Sandbox Source Scope**.
 - A **Live Coral Query** must produce the investigation result from the configured sources.
 - **Local Prototype Data** can be used before **Sandbox Sources** are configured, but must not replace the **Live Coral Query** in the final demo.
 - The **Investigation Query Template** produces the **Live Coral Query** for a given **Sentry Issue ID**.

@@ -1,144 +1,36 @@
 # TraceBullet
 
-TraceBullet is a local incident investigation tool that starts from a Sentry Issue ID and produces a deterministic report pointing to the most likely Suspected Causing PR.
+TraceBullet is a local command-line tool for answering one question:
 
-## What
+> Which recently merged pull request most likely caused this Sentry error?
 
-The first implemented slice is a CLI Investigation Command backed by Local Prototype Data:
+It starts with a Sentry issue ID, checks matching GitHub pull requests, and adds nearby Slack context when a relevant message exists.
 
-```bash
-node src/cli.ts investigate SENTRY-TB-1001
-```
-
-Automation and future UI surfaces can request the same investigation facts as JSON:
-
-```bash
-node src/cli.ts investigate SENTRY-TB-1001 --json
-```
-
-After Coral auth is configured for sandbox-only sources, the same command can run against a Live Coral Query:
-
-```bash
-node src/cli.ts investigate SENTRY-TB-1001 --source coral
-node src/cli.ts investigate SENTRY-TB-1001 --source coral --json
-```
-
-For the known prototype Sentry issue, TraceBullet:
-
-- Loads local Sentry, GitHub PR, and Slack records.
-- Finds Candidate PRs with an exact Service Tag match.
-- Filters PRs to the 30-minute Investigation Window before the Sentry issue first appeared.
-- Selects the closest prior merge as the Suspected Causing PR.
-- Lists other Candidate PRs separately from the Suspected Causing PR.
-- Shows missing Slack Context as an evidence gap without failing the investigation.
-- Returns No Suspected Causing PR Found when Service Match, Time Match, or both are missing.
-- Prints a human-readable Deterministic Report with Sentry issue, Suspected Causing PR, Evidence, Other Candidate PRs, Suggested Revert Command, Query Representation, and Runtime sections.
-- Prints a Machine Report JSON shape with the same core facts when `--json` is passed.
-
-## Why
-
-TraceBullet avoids guessing. The MVP uses deterministic matching rules instead of an LLM as the source of truth:
-
-- A Service Match requires the same Service Tag on the Sentry issue and pull request.
-- A Time Match requires the pull request to be merged before first seen and inside the 30-minute Investigation Window.
-- Slack Context can strengthen Evidence, but it is not required to identify a Suspected Causing PR.
-- Slack Context only counts when a Slack Marker appears before the Sentry issue first appears.
-- Suggested Revert Command is a copyable next step only. TraceBullet prints the command but does not run rollback commands or mutate the repository.
-- Query Representation records the Investigation Query Template behavior used for Local Prototype Data so later Coral wiring can replace it with the Live Coral Query text.
-- Runtime records elapsed command time in milliseconds without making tests depend on exact wall-clock timing.
-- The Coral path runs one Live Coral Query over sandbox GitHub, Sentry, and Slack source tables. It does not call vendor APIs directly and does not fall back to Local Prototype Data when Coral is requested.
-
-This keeps the first product surface small, testable, and ready to swap from Local Prototype Data to sandbox Coral sources later.
-
-## Accepted prototype direction
-
-The accepted UI direction is preserved in `prototypes/tracebullet-app-prototype/NOTES.md` while the implementation stays CLI-first. The dashboard is not part of the first implementation.
-
-Future dashboard work should keep the one-action-per-screen instrument direction from the prototype:
-
-- Choose the Sentry Issue ID maps to the CLI investigation input.
-- Read the Suspected Causing PR maps to the report's selected suspect.
-- Check Evidence maps to Service Match, Time Match, Slack Context, and missing proof.
-- Copy the Suggested Revert Command maps to the report's remediation command section.
-- Inspect the Machine Report maps to the `--json` output used by automation and future UI rendering.
-
-## How
+## Quick Start
 
 Requirements:
 
-- Node.js 24 or newer.
+- Node.js 24 or newer
+- Coral configured if you want to query live sandbox data
 
-Run the successful local investigation:
+Run the local sample data:
 
 ```bash
 node src/cli.ts investigate SENTRY-TB-1001
 ```
 
-Run the machine-readable investigation:
+Get JSON output:
 
 ```bash
 node src/cli.ts investigate SENTRY-TB-1001 --json
 ```
 
-Run an investigation where Slack Context is missing:
+Run the current live sandbox investigation:
 
 ```bash
-node src/cli.ts investigate SENTRY-TB-1002
+node src/cli.ts investigate CHECKOUT-4 --source coral
+node src/cli.ts investigate CHECKOUT-4 --source coral --json
 ```
-
-Run investigations where required proof is missing:
-
-```bash
-node src/cli.ts investigate SENTRY-TB-1003
-node src/cli.ts investigate SENTRY-TB-1004
-node src/cli.ts investigate SENTRY-TB-1005
-```
-
-These no-suspect fixtures cover the three missing-proof outcomes:
-
-- `SENTRY-TB-1003`: Time Match is present, Service Match is missing.
-- `SENTRY-TB-1004`: Service Match is present, Time Match is missing.
-- `SENTRY-TB-1005`: both Service Match and Time Match are missing.
-
-Run an investigation where a Suspected Causing PR is found but commit information is missing:
-
-```bash
-node src/cli.ts investigate SENTRY-TB-1006
-```
-
-TraceBullet marks the Suggested Revert Command unavailable when there is no merge commit.
-
-Run against Coral sandbox sources:
-
-1. Configure Coral auth for sandbox GitHub, Sentry, and Slack sources only. Do not point TraceBullet at production workspaces or private company data.
-2. Provide a command that reads the Live Coral Query from stdin and writes JSON to stdout:
-
-```bash
-export TRACEBULLET_CORAL_QUERY_COMMAND=/path/to/coral-query-wrapper
-node src/cli.ts investigate SENTRY-TB-1001 --source coral
-```
-
-If the command needs fixed arguments, set them with `TRACEBULLET_CORAL_QUERY_ARGS`.
-
-The command must return either normalized arrays:
-
-```json
-{
-  "sentryIssues": [],
-  "pullRequests": [],
-  "slackMessages": []
-}
-```
-
-or Live Coral Query rows with a `recordSet` value of `sentryIssues`, `pullRequests`, or `slackMessages`.
-
-The built-in query expects sandbox tables named:
-
-- `sentry_sandbox_issues`
-- `github_sandbox_pull_requests`
-- `slack_sandbox_messages`
-
-If your Coral source exposes different sandbox table names, adapt the wrapper before credentials are supplied. The report will show `Live Coral Query` and `Coral Sandbox Sources` when this path is used.
 
 Run tests:
 
@@ -146,4 +38,171 @@ Run tests:
 npm test
 ```
 
-The tests exercise the public command behavior and verify successful, no-suspect, unavailable Suggested Revert Command, Query Representation, and Runtime reports without asserting private implementation details or exact wall-clock timing.
+## How It Decides
+
+TraceBullet uses fixed rules. It does not ask an LLM to guess.
+
+A pull request is treated as the likely cause only when both are true:
+
+- The Sentry project and pull request label use the same service name, such as `checkout`.
+- The pull request was merged during the 30 minutes before the Sentry issue first appeared.
+
+If more than one pull request matches, TraceBullet picks the one merged closest to the Sentry issue time.
+
+Slack is extra context. A Slack message can support the report, but a missing Slack message does not stop TraceBullet from finding a matching pull request.
+
+## Local Sample Cases
+
+These examples use built-in fake data:
+
+```bash
+node src/cli.ts investigate SENTRY-TB-1001
+node src/cli.ts investigate SENTRY-TB-1001 --json
+```
+
+Other local examples:
+
+- `SENTRY-TB-1002`: finds a pull request, but Slack context is missing.
+- `SENTRY-TB-1003`: has a timing match, but no service match.
+- `SENTRY-TB-1004`: has a service match, but no timing match.
+- `SENTRY-TB-1005`: has neither required match.
+- `SENTRY-TB-1006`: finds a pull request, but cannot print a revert command because the merge commit is missing.
+
+## Live Sandbox Setup
+
+The live path uses Coral to read real sandbox data from:
+
+- Sentry issues
+- GitHub pull requests
+- Slack channel messages
+
+Keep this pointed at sandbox data only. Do not connect it to private company or production workspaces.
+
+Before running a live check:
+
+1. Configure Coral for the sandbox GitHub, Sentry, and Slack sources.
+2. Make sure the Sentry issue is in the sandbox Sentry project.
+3. Label the matching GitHub pull request with the Sentry project name, for example `checkout`.
+4. Invite the Coral Slack app into the sandbox Slack channel.
+
+TraceBullet defaults to this sandbox:
+
+- GitHub owner: `sivaratrisrinivas`
+- GitHub repo: `traceBullet`
+- Slack channel ID: `C0B689JN3L6`
+- Coral runner: `scripts/run-coral-sql.mjs`
+
+Override those defaults with:
+
+- `TRACEBULLET_GITHUB_OWNER`
+- `TRACEBULLET_GITHUB_REPO`
+- `TRACEBULLET_SLACK_CHANNEL_ID`
+- `TRACEBULLET_CORAL_QUERY_COMMAND`
+- `TRACEBULLET_CORAL_QUERY_ARGS`
+
+## Current Live Sandbox
+
+The current complete live example is:
+
+```bash
+node src/cli.ts investigate CHECKOUT-4 --source coral --json
+```
+
+Expected result:
+
+- Sentry issue: `CHECKOUT-4`
+- Matching pull request: PR #11
+- Service: `checkout`
+- PR merged about 3.37 minutes before the Sentry issue first appeared
+- Slack context is included
+
+Current live records:
+
+- `CHECKOUT-1`: old Sentry issue. No pull request is selected because PR #10 merged after this issue appeared.
+- `CHECKOUT-2`: finds PR #10, but has no Slack context because the Slack message was posted later.
+- `CHECKOUT-3`: old Sentry issue. No pull request is selected because PR #10 was outside the 30-minute window.
+- `CHECKOUT-4`: current full example. Finds PR #11 and includes Slack context.
+- PR #10: `Add checkout Coral sandbox marker`, merge commit `364c934791ec401deb3cab188d68c46622ffe0a5`.
+- PR #11: `Add second checkout Coral sandbox marker`, merge commit `ea7c0847e29ff32cd5d6db6af1f9be36fcc704bf`.
+
+The Slack message used by `CHECKOUT-4` is:
+
+```text
+Merged PR #11 for checkout test error investigation
+```
+
+## Posting A Slack Marker
+
+TraceBullet can read Slack through Coral, but Coral does not post Slack messages. This repo includes a small helper for posting a marker through Slack's API:
+
+```bash
+SLACK_BOT_TOKEN=xoxb-... node scripts/post-slack-marker.mjs "Merged PR #11 for checkout test error investigation"
+```
+
+The Slack token must have `chat:write`, and the app must be allowed to post in channel `C0B689JN3L6`.
+
+If Slack returns `missing_scope`:
+
+1. Open the Slack app settings.
+2. Go to `OAuth & Permissions`.
+3. Add the Bot Token OAuth Scope `chat:write`.
+4. Reinstall the app to the workspace.
+5. Use the new bot token.
+
+Timing matters: the Slack message must be posted before the Sentry issue first appears. If you post the message after the issue, trigger a fresh Sentry error and investigate the new Sentry short ID.
+
+## Coral Runner
+
+The included runner reads SQL from stdin and passes it to Coral:
+
+```bash
+scripts/run-coral-sql.mjs
+```
+
+It runs:
+
+```bash
+coral sql --format json <SQL>
+```
+
+The live code intentionally runs small per-source queries and combines the results in TypeScript. This avoids Coral CLI JSON/Arrow encoding failures seen with a larger cross-source `UNION ALL` query.
+
+The live path reads these Coral schemas:
+
+- `sentry.issues`
+- `github.pulls`
+- `slack.channels`
+- `slack.messages(channel => '<channel-id>')`
+- `slack.users`
+
+If Coral returns `not_in_channel`, invite the Coral Slack app into the configured Slack channel and rerun the command.
+
+## Output
+
+Human-readable output includes:
+
+- Sentry issue
+- Suspected pull request, when one is found
+- Matching evidence
+- Slack context, when present
+- Other matching pull requests
+- Missing proof, when no pull request is selected
+- Suggested `git revert` command, when a merge commit is available
+
+JSON output includes the same facts for tests and future UI work:
+
+```bash
+node src/cli.ts investigate CHECKOUT-4 --source coral --json
+```
+
+## Accepted Prototype Direction
+
+The Accepted prototype direction is saved in `prototypes/tracebullet-app-prototype/NOTES.md`. The dashboard is not part of the first implementation.
+
+Later dashboard work should keep the one-action-per-screen instrument style from the prototype:
+
+- Sentry Issue ID: choose the issue to investigate.
+- Suspected Causing PR: read the selected pull request.
+- Evidence: check why the pull request was selected.
+- Suggested Revert Command: copy the command when a merge commit is available.
+- Machine Report: inspect the JSON output.

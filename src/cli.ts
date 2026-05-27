@@ -28,7 +28,7 @@ export function runTraceBulletCommand(
   const [command, sentryIssueId, ...flags] = args;
   const outputFormat = flags.includes("--json") ? "json" : "deterministic";
   const source = readSourceFlag(flags);
-  const env = options.env ?? process.env;
+  const env = options.env ?? readDefaultCliEnvironment(source);
 
   if (command !== "investigate" || !sentryIssueId) {
     return {
@@ -39,20 +39,35 @@ export function runTraceBulletCommand(
   }
 
   const startedAt = performance.now();
-  const reportMetadata =
-    source === "coral"
-      ? {
-          queryRepresentation: {
-            source: "Live Coral Query" as const,
-            description: buildLiveCoralInvestigationQuery(sentryIssueId)
-          },
-          runtimeSource: "Coral Sandbox Sources" as const
-        }
-      : undefined;
+  let reportMetadata:
+    | {
+        queryRepresentation: {
+          source: "Live Coral Query";
+          description: string;
+        };
+        runtimeSource: "Coral Sandbox Sources";
+      }
+    | undefined;
 
   let data = localPrototypeData;
 
   try {
+    if (source === "coral" && !options.runCoralQuery && !env.TRACEBULLET_CORAL_QUERY_COMMAND) {
+      throw new Error(
+        "Coral source requires TRACEBULLET_CORAL_QUERY_COMMAND. Configure it to run Coral SQL against sandbox GitHub, Sentry, and Slack sources."
+      );
+    }
+
+    reportMetadata =
+      source === "coral"
+        ? {
+            queryRepresentation: {
+              source: "Live Coral Query" as const,
+              description: buildLiveCoralInvestigationQuery(sentryIssueId, env)
+            },
+            runtimeSource: "Coral Sandbox Sources" as const
+          }
+        : undefined;
     data =
       source === "coral"
         ? loadCoralSandboxData(sentryIssueId, env, options.runCoralQuery)
@@ -104,6 +119,27 @@ function readSourceFlag(flags: string[]): "local" | "coral" {
   const sourceFlagValue = sourceFlagIndex >= 0 ? flags[sourceFlagIndex + 1] : undefined;
 
   return sourceFlagValue === "coral" ? "coral" : "local";
+}
+
+function readDefaultCliEnvironment(source: "local" | "coral"): NodeJS.ProcessEnv {
+  if (source !== "coral") {
+    return process.env;
+  }
+
+  return {
+    ...process.env,
+    TRACEBULLET_CORAL_QUERY_COMMAND:
+      process.env.TRACEBULLET_CORAL_QUERY_COMMAND ?? process.execPath,
+    TRACEBULLET_CORAL_QUERY_ARGS:
+      process.env.TRACEBULLET_CORAL_QUERY_ARGS ??
+      fileURLToPath(new URL("../scripts/run-coral-sql.mjs", import.meta.url)),
+    TRACEBULLET_GITHUB_OWNER:
+      process.env.TRACEBULLET_GITHUB_OWNER ?? "sivaratrisrinivas",
+    TRACEBULLET_GITHUB_REPO:
+      process.env.TRACEBULLET_GITHUB_REPO ?? "traceBullet",
+    TRACEBULLET_SLACK_CHANNEL_ID:
+      process.env.TRACEBULLET_SLACK_CHANNEL_ID ?? "C0B689JN3L6"
+  };
 }
 
 const isDirectExecution = process.argv[1] === fileURLToPath(import.meta.url);
