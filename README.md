@@ -38,6 +38,56 @@ Run tests:
 npm test
 ```
 
+Run the thin agent-facing tool:
+
+```bash
+echo '{"sentryIssueId":"SENTRY-TB-1001","source":"local"}' | npm run agent:tool
+```
+
+Open the static UI:
+
+```text
+ui/index.html
+```
+
+## Demo In 60 Seconds
+
+Run the verified live Coral investigation:
+
+```bash
+node src/cli.ts investigate CHECKOUT-4 --source coral --json
+```
+
+Expected result:
+
+- Suspected Causing PR: `#11`
+- Service Match: `checkout`
+- Time Match: about `3.37` minutes before first seen
+- Slack Context: `Merged PR #11 for checkout test error investigation`
+- Coral query strategy: `Single Investigation Query`
+
+Run the same investigation through the agent-facing adapter:
+
+```bash
+echo '{"sentryIssueId":"CHECKOUT-4","source":"coral"}' | npm run agent:tool
+```
+
+Open the static UI:
+
+```bash
+python3 -m http.server 4175 --directory ui
+```
+
+Then open:
+
+```text
+http://localhost:4175
+```
+
+TraceBullet's honest claim:
+
+> TraceBullet uses Coral to query live Sentry, GitHub, and Slack sandbox sources locally, filters Candidate PRs and Slack Context through SQL, then applies deterministic TypeScript ranking and report formatting.
+
 ## How It Decides
 
 TraceBullet uses fixed rules. It does not ask an LLM to guess.
@@ -99,6 +149,10 @@ Override those defaults with:
 - `TRACEBULLET_SLACK_CHANNEL_ID`
 - `TRACEBULLET_CORAL_QUERY_COMMAND`
 - `TRACEBULLET_CORAL_QUERY_ARGS`
+- `TRACEBULLET_CORAL_QUERY_RETRIES`
+- `TRACEBULLET_CORAL_RETRY_DELAY_MS`
+
+See [.env.example](.env.example) for the sandbox environment shape.
 
 ## Current Live Sandbox
 
@@ -130,6 +184,16 @@ The Slack message used by `CHECKOUT-4` is:
 ```text
 Merged PR #11 for checkout test error investigation
 ```
+
+For the demo narrative and live-vs-synthetic boundary, see [docs/demo-readiness.md](docs/demo-readiness.md).
+
+For the hackathon criteria mapping, see [docs/judging-map.md](docs/judging-map.md).
+
+For local execution and token-handling boundaries, see [docs/privacy.md](docs/privacy.md).
+
+For the JSON stdin/stdout agent adapter, see [docs/agent-tool.md](docs/agent-tool.md).
+
+For the static investigation interface, see [ui/README.md](ui/README.md).
 
 ## Posting A Slack Marker
 
@@ -165,7 +229,13 @@ It runs:
 coral sql --format json <SQL>
 ```
 
-The live code intentionally runs small per-source queries and combines the results in TypeScript. This avoids Coral CLI JSON/Arrow encoding failures seen with a larger cross-source `UNION ALL` query.
+The live code tries one Coral investigation query first. That query returns the target Sentry issue, Candidate PR rows, and Slack Context rows in one normalized result set. If Coral rejects the larger query shape, TraceBullet falls back to smaller staged Coral queries with the same source-side narrowing:
+
+- Sentry is queried for the target issue.
+- GitHub is queried for pull requests with the same Service Tag merged inside the 30-minute Investigation Window.
+- Slack is queried for pre-incident messages with the Service Tag, PR number, or merge commit marker.
+
+This keeps Coral responsible for live source retrieval and candidate filtering while TypeScript handles defensive ranking, report formatting, and local prototype parity. The staged fallback avoids Coral CLI JSON/Arrow encoding failures seen with larger cross-source `UNION ALL` query shapes.
 
 The live path reads these Coral schemas:
 
@@ -176,6 +246,8 @@ The live path reads these Coral schemas:
 - `slack.users`
 
 If Coral returns `not_in_channel`, invite the Coral Slack app into the configured Slack channel and rerun the command.
+
+If Coral reports a retryable upstream source timeout, such as a Sentry API timeout, TraceBullet retries the Coral query once by default before falling back or failing. Tune this with `TRACEBULLET_CORAL_QUERY_RETRIES` and `TRACEBULLET_CORAL_RETRY_DELAY_MS`.
 
 ## Output
 
@@ -188,6 +260,7 @@ Human-readable output includes:
 - Other matching pull requests
 - Missing proof, when no pull request is selected
 - Suggested `git revert` command, when a merge commit is available
+- Coral query strategy, for live sandbox runs
 
 JSON output includes the same facts for tests and future UI work:
 

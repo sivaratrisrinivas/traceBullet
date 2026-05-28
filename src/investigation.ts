@@ -35,6 +35,8 @@ export type InvestigationReport = {
   };
   runtime: {
     source: "Local Prototype Data" | "Coral Sandbox Sources";
+    coralQueryStrategy?: "Single Investigation Query" | "Staged Query Fallback";
+    coralQueryFallbackReason?: string;
     investigationWindowMinutes: number;
     durationMs: number;
   };
@@ -210,6 +212,10 @@ export function formatDeterministicReport(report: InvestigationReport): string {
     "",
     "Runtime",
     `- source: ${runtime.source}`,
+    ...(runtime.coralQueryStrategy ? [`- Coral query strategy: ${runtime.coralQueryStrategy}`] : []),
+    ...(runtime.coralQueryFallbackReason
+      ? [`- Coral query fallback reason: ${runtime.coralQueryFallbackReason}`]
+      : []),
     `- investigation window: ${runtime.investigationWindowMinutes} minutes`,
     `- duration: ${runtime.durationMs} ms`
   ].join("\n");

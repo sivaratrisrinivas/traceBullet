@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TraceBullet Demo Explainer</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #1d1b16;
+        --muted: #625c50;
+        --paper: #f7f3ea;
+        --panel: #fffaf0;
+        --line: #28241d;
+        --accent: #b84a2d;
+        --accent-2: #286b5f;
+        --code: #242018;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        background: var(--paper);
+        color: var(--ink);
+        line-height: 1.5;
+      }
+
+      main {
+        width: min(1120px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 40px 0 56px;
+      }
+
+      header {
+        border-bottom: 2px solid var(--line);
+        padding-bottom: 24px;
+        margin-bottom: 32px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 4vw, 4.25rem);
+        line-height: 0.96;
+        max-width: 900px;
+      }
+
+      .subtitle {
+        max-width: 720px;
+        margin: 18px 0 0;
+        color: var(--muted);
+        font-size: 1.05rem;
+      }
+
+      section {
+        padding: 28px 0;
+        border-bottom: 1px solid color-mix(in srgb, var(--line) 28%, transparent);
+      }
+
+      h2 {
+        margin: 0 0 14px;
+        font-size: 1.35rem;
+      }
+
+      h3 {
+        margin: 20px 0 8px;
+        font-size: 1rem;
+      }
+
+      p {
+        max-width: 820px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .panel,
+      details {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 16px;
+      }
+
+      .panel strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 18px;
+      }
+
+      .step {
+        min-height: 116px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        background: #ffffff;
+        border-radius: 4px;
+      }
+
+      .step span {
+        display: inline-flex;
+        width: 26px;
+        height: 26px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        margin-bottom: 10px;
+        font-size: 0.85rem;
+        color: #fff;
+        background: var(--accent-2);
+      }
+
+      code,
+      pre {
+        font-family:
+          "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      }
+
+      code {
+        color: var(--code);
+        background: #eee3d0;
+        padding: 2px 5px;
+        border-radius: 4px;
+      }
+
+      pre {
+        overflow-x: auto;
+        background: #181610;
+        color: #fff9e8;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #000;
+      }
+
+      ul {
+        padding-left: 1.2rem;
+      }
+
+      li + li {
+        margin-top: 6px;
+      }
+
+      summary {
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      .callout {
+        border-left: 5px solid var(--accent);
+        padding: 12px 16px;
+        background: #fff4df;
+        max-width: 860px;
+      }
+
+      @media (max-width: 820px) {
+        .grid,
+        .flow {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>TraceBullet, explained for an interview demo</h1>
+        <p class="subtitle">
+          Use this as your speaking map: product problem first, deterministic
+          investigation second, code path third, and tradeoffs last.
+        </p>
+      </header>
+
+      <section>
+        <h2>The 20-second answer</h2>
+        <p>
+          TraceBullet is a local command-line incident investigation tool. You
+          give it a Sentry Issue ID, it checks recently merged GitHub pull
+          requests for the same service, adds nearby Slack context when it can,
+          and prints the suspected causing PR with evidence.
+        </p>
+        <div class="callout">
+          The important interview phrase: TraceBullet does not guess. The MVP
+          uses deterministic rules before any optional narrative layer.
+        </div>
+      </section>
+
+      <section>
+        <h2>The end-to-end flow</h2>
+        <div class="flow">
+          <div class="step">
+            <span>1</span>
+            <strong>Input</strong>
+            <p>A developer runs an investigation with a Sentry Issue ID.</p>
+          </div>
+          <div class="step">
+            <span>2</span>
+            <strong>Data source</strong>
+            <p>The CLI loads either local prototype data or Coral sandbox data.</p>
+          </div>
+          <div class="step">
+            <span>3</span>
+            <strong>Matching</strong>
+            <p>The core algorithm requires a Service Match and Time Match.</p>
+          </div>
+          <div class="step">
+            <span>4</span>
+            <strong>Evidence</strong>
+            <p>Slack context is attached only when a pre-incident marker exists.</p>
+          </div>
+          <div class="step">
+            <span>5</span>
+            <strong>Output</strong>
+            <p>The CLI prints a human report or JSON Machine Report.</p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>The demo command</h2>
+        <pre><code>node src/cli.ts investigate SENTRY-TB-1001
+node src/cli.ts investigate SENTRY-TB-1001 --json</code></pre>
+        <p>
+          The first command is the clean human demo. The second shows that the
+          same facts are available as structured JSON for tests and future UI
+          work.
+        </p>
+      </section>
+
+      <section>
+        <h2>How the code is organized</h2>
+        <div class="grid">
+          <div class="panel">
+            <strong><code>src/cli.ts</code></strong>
+            Parses <code>investigate</code>, reads flags, chooses source,
+            measures runtime, and formats output.
+          </div>
+          <div class="panel">
+            <strong><code>src/investigation.ts</code></strong>
+            Holds the core rules: 30-minute window, exact service tag match,
+            closest prior candidate wins.
+          </div>
+          <div class="panel">
+            <strong><code>src/localPrototypeData.ts</code></strong>
+            Contains repeatable fake Sentry, GitHub, and Slack records for a
+            safe local demo.
+          </div>
+          <div class="panel">
+            <strong><code>src/coralSandboxData.ts</code></strong>
+            Builds and runs Coral SQL against sandbox Sentry, GitHub, and Slack
+            sources, then normalizes rows into the same data shape.
+          </div>
+          <div class="panel">
+            <strong><code>test/investigate-cli.test.js</code></strong>
+            Documents expected behavior: success, JSON output, missing Slack,
+            no-match cases, and Coral configuration errors.
+          </div>
+          <div class="panel">
+            <strong><code>prototypes/...</code></strong>
+            Captures a future UI direction: one action per screen, not a dense
+            dashboard in the MVP.
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>The matching rule</h2>
+        <p>
+          A pull request becomes a candidate only if it has the same service tag
+          as the Sentry issue and was merged during the 30 minutes before the
+          issue first appeared. If more than one candidate exists, TraceBullet
+          chooses the one merged closest to the issue time.
+        </p>
+        <p>
+          Slack context is useful, but not required. That is a deliberate design
+          choice: chat can support the report, but it should not decide whether
+          a PR is a candidate.
+        </p>
+      </section>
+
+      <section>
+        <h2>What to say about architecture</h2>
+        <ul>
+          <li>
+            The project starts with a CLI because the riskiest part is the
+            investigation logic, not the UI.
+          </li>
+          <li>
+            Local prototype data makes the demo repeatable without touching
+            production systems.
+          </li>
+          <li>
+            Coral sandbox data proves the same flow can read real external
+            sources while staying bounded to safe demo accounts.
+          </li>
+          <li>
+            JSON output keeps the CLI useful for automated tests and later UI
+            rendering.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Self-check</h2>
+        <details>
+          <summary>Why does TraceBullet avoid saying root cause?</summary>
+          <p>
+            Because the evidence is strong but bounded. The tool identifies a
+            Suspected Causing PR, not a proven root cause.
+          </p>
+        </details>
+        <details>
+          <summary>What are the two required matches?</summary>
+          <p>
+            Service Match and Time Match. Slack context is supporting evidence,
+            not a requirement.
+          </p>
+        </details>
+        <details>
+          <summary>Where would you start reading the code?</summary>
+          <p>
+            Start in <code>src/cli.ts</code>, then follow the call into
+            <code>investigateSentryIssue</code> in
+            <code>src/investigation.ts</code>.
+          </p>
+        </details>
+      </section>
+    </main>
+  </body>
+</html>

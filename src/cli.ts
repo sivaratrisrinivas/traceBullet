@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
 import {
+  type CoralSandboxData,
   type CoralQueryRunner,
   buildLiveCoralInvestigationQuery,
   loadCoralSandboxData
@@ -94,6 +95,7 @@ export function runTraceBulletCommand(
     ...report,
     runtime: {
       ...report.runtime,
+      ...readCoralQueryStrategyRuntime(data),
       durationMs: Math.max(0, Math.round(performance.now() - startedAt))
     }
   };
@@ -105,6 +107,16 @@ export function runTraceBulletCommand(
         : formatDeterministicReport(reportWithRuntime),
     stderr: "",
     exitCode: 0
+  };
+}
+
+function readCoralQueryStrategyRuntime(data: typeof localPrototypeData) {
+  const coralQueryStrategy = (data as Partial<CoralSandboxData>).coralQueryStrategy;
+  const coralQueryFallbackReason = (data as Partial<CoralSandboxData>).coralQueryFallbackReason;
+
+  return {
+    ...(coralQueryStrategy ? { coralQueryStrategy } : {}),
+    ...(coralQueryFallbackReason ? { coralQueryFallbackReason } : {})
   };
 }
 

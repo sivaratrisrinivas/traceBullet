@@ -104,6 +104,10 @@ _Avoid_: Automatic rollback, one-click revert
 A named part of the Deterministic Report, such as Sentry issue, Suspected Causing PR, Evidence, other candidates, missing proof, SQL, or runtime.
 _Avoid_: Chat response, loose paragraph
 
+**Demo Readiness**:
+The state where the completed TraceBullet slice is safe, repeatable, and explainable for an interview or live demo.
+_Avoid_: Product hardening, new feature work, production readiness
+
 ## Relationships
 
 - **TraceBullet** investigates one observed production failure at a time.
@@ -131,6 +135,7 @@ _Avoid_: Chat response, loose paragraph
 - A **Machine Report** contains the same facts as the **Deterministic Report**.
 - A **Narrative Summary** can be added later, but it must only restate the **Deterministic Report**.
 - A **Deterministic Report** can include a **Suggested Revert Command** when the Suspected Causing PR has a merge commit.
+- **Demo Readiness** follows a completed implementation slice and focuses on making the existing **Investigation Command** safe and explainable.
 
 ## Example dialogue
 

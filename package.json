@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "agent:tool": "node scripts/tracebullet-agent-tool.mjs",
     "test": "node --test"
   },
   "engines": {

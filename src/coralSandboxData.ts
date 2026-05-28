@@ -4,10 +4,10 @@ import type { LocalPrototypeData } from "./localPrototypeData.ts";
 const LIVE_CORAL_INVESTIGATION_QUERY_TEMPLATE = `
 WITH target_sentry_issue AS (
   SELECT
-    COALESCE(short_id, id) AS id,
-    title,
-    project AS serviceTag,
-    first_seen AS firstSeenAt
+    CAST(COALESCE(short_id, id) AS VARCHAR) AS id,
+    CAST(title AS VARCHAR) AS title,
+    CAST(project AS VARCHAR) AS serviceTag,
+    CAST(first_seen AS VARCHAR) AS firstSeenAt
   FROM sentry.issues
   WHERE query = 'is:unresolved'
     AND (id = '{{SENTRY_ISSUE_ID}}' OR short_id = '{{SENTRY_ISSUE_ID}}')
@@ -16,22 +16,22 @@ WITH target_sentry_issue AS (
 sandbox_pull_requests AS (
   SELECT
     pull_requests.number,
-    pull_requests.title,
-    COALESCE(pull_requests.user__login, 'unknown') AS author,
-    CASE
-      WHEN pull_requests.label_names IS NULL THEN ''
-      WHEN LOWER(',' || pull_requests.label_names || ',') LIKE '%,' || LOWER((SELECT serviceTag FROM target_sentry_issue)) || ',%'
-        THEN (SELECT serviceTag FROM target_sentry_issue)
-      ELSE pull_requests.label_names
-    END AS serviceTag,
-    pull_requests.merged_at AS mergedAt,
-    pull_requests.merge_commit_sha AS mergeCommit
+    CAST(pull_requests.title AS VARCHAR) AS title,
+    CAST(COALESCE(pull_requests.user__login, 'unknown') AS VARCHAR) AS author,
+    CAST(target_sentry_issue.serviceTag AS VARCHAR) AS serviceTag,
+    CAST(pull_requests.merged_at AS VARCHAR) AS mergedAt,
+    CAST(pull_requests.merge_commit_sha AS VARCHAR) AS mergeCommit
   FROM github.pulls AS pull_requests
   CROSS JOIN target_sentry_issue
   WHERE pull_requests.owner = '{{GITHUB_OWNER}}'
     AND pull_requests.repo = '{{GITHUB_REPO}}'
     AND pull_requests.state = 'closed'
     AND pull_requests.merged_at IS NOT NULL
+    AND LOWER(',' || COALESCE(pull_requests.label_names, '') || ',') LIKE '%,' || LOWER(target_sentry_issue.serviceTag) || ',%'
+    AND CAST(pull_requests.merged_at AS TIMESTAMP) BETWEEN
+      CAST(target_sentry_issue.firstSeenAt AS TIMESTAMP) - INTERVAL '30 minutes'
+      AND CAST(target_sentry_issue.firstSeenAt AS TIMESTAMP)
+  ORDER BY CAST(pull_requests.merged_at AS TIMESTAMP) DESC
   LIMIT 100
 ),
 sandbox_slack_channel AS (
@@ -44,22 +44,36 @@ sandbox_slack_channel AS (
 ),
 sandbox_slack_messages AS (
   SELECT
-    '#' || sandbox_slack_channel.name AS channel,
-    COALESCE(slack.users.display_name, slack.users.name, slack_messages.user_id, 'unknown') AS author,
+    CAST('#' || sandbox_slack_channel.name AS VARCHAR) AS channel,
+    CAST(COALESCE(NULLIF(slack.users.display_name, ''), NULLIF(slack.users.name, ''), slack_messages.user_id, 'unknown') AS VARCHAR) AS author,
     CAST(slack_messages.ts AS VARCHAR) AS sentAt,
-    slack_messages.text
+    CAST(slack_messages.text AS VARCHAR) AS text
   FROM sandbox_slack_channel
   CROSS JOIN target_sentry_issue
   CROSS JOIN slack.messages(channel => '{{SLACK_CHANNEL_ID}}') AS slack_messages
   LEFT JOIN slack.users ON slack.users.id = slack_messages.user_id
+  LEFT JOIN sandbox_pull_requests ON
+    slack_messages.text LIKE '%#' || CAST(sandbox_pull_requests.number AS VARCHAR) || '%'
+    OR (
+      sandbox_pull_requests.mergeCommit IS NOT NULL
+      AND slack_messages.text LIKE '%' || sandbox_pull_requests.mergeCommit || '%'
+    )
+  WHERE CAST(slack_messages.ts AS TIMESTAMP) BETWEEN
+      CAST(target_sentry_issue.firstSeenAt AS TIMESTAMP) - INTERVAL '30 minutes'
+      AND CAST(target_sentry_issue.firstSeenAt AS TIMESTAMP)
+    AND (
+      LOWER(slack_messages.text) LIKE '%' || LOWER(target_sentry_issue.serviceTag) || '%'
+      OR sandbox_pull_requests.number IS NOT NULL
+    )
+  ORDER BY sentAt DESC
   LIMIT 200
 )
 SELECT
   'sentryIssues' AS recordSet,
-  id,
-  title,
-  serviceTag,
-  firstSeenAt,
+  CAST(id AS VARCHAR) AS id,
+  CAST(title AS VARCHAR) AS title,
+  CAST(serviceTag AS VARCHAR) AS serviceTag,
+  CAST(firstSeenAt AS VARCHAR) AS firstSeenAt,
   CAST(NULL AS BIGINT) AS number,
   CAST(NULL AS VARCHAR) AS author,
   CAST(NULL AS VARCHAR) AS mergedAt,
@@ -72,13 +86,13 @@ UNION ALL
 SELECT
   'pullRequests' AS recordSet,
   CAST(NULL AS VARCHAR) AS id,
-  title,
-  serviceTag,
+  CAST(title AS VARCHAR) AS title,
+  CAST(serviceTag AS VARCHAR) AS serviceTag,
   CAST(NULL AS VARCHAR) AS firstSeenAt,
   number,
-  author,
-  mergedAt,
-  mergeCommit,
+  CAST(author AS VARCHAR) AS author,
+  CAST(mergedAt AS VARCHAR) AS mergedAt,
+  CAST(mergeCommit AS VARCHAR) AS mergeCommit,
   CAST(NULL AS VARCHAR) AS channel,
   CAST(NULL AS VARCHAR) AS sentAt,
   CAST(NULL AS VARCHAR) AS text
@@ -91,12 +105,12 @@ SELECT
   CAST(NULL AS VARCHAR) AS serviceTag,
   CAST(NULL AS VARCHAR) AS firstSeenAt,
   CAST(NULL AS BIGINT) AS number,
-  author,
+  CAST(author AS VARCHAR) AS author,
   CAST(NULL AS VARCHAR) AS mergedAt,
   CAST(NULL AS VARCHAR) AS mergeCommit,
-  channel,
-  sentAt,
-  text
+  CAST(channel AS VARCHAR) AS channel,
+  CAST(sentAt AS VARCHAR) AS sentAt,
+  CAST(text AS VARCHAR) AS text
 FROM sandbox_slack_messages;
 `.trim();
 
@@ -136,40 +150,73 @@ LIMIT 1;
 }
 
 function buildLiveCoralPullRequestsQuery(
-  serviceTag: string,
+  targetSentryIssue: LocalPrototypeData["sentryIssues"][number],
   env: CoralQueryEnvironment
 ): string {
   const config = readCoralSandboxConfig(env);
-  const escapedServiceTag = escapeSqlLiteral(serviceTag);
+  const escapedServiceTag = escapeSqlLiteral(targetSentryIssue.serviceTag);
+  const escapedFirstSeenAt = escapeSqlLiteral(targetSentryIssue.firstSeenAt);
 
   return `
+WITH target_sentry_issue AS (
+  SELECT
+    '${escapedServiceTag}' AS serviceTag,
+    '${escapedFirstSeenAt}' AS firstSeenAt
+)
 SELECT
   'pullRequests' AS recordSet,
   pull_requests.number,
   pull_requests.title,
   COALESCE(pull_requests.user__login, 'unknown') AS author,
-  CASE
-    WHEN pull_requests.label_names IS NULL THEN ''
-    WHEN LOWER(',' || pull_requests.label_names || ',') LIKE '%,${escapedServiceTag.toLowerCase()},%'
-      THEN '${escapedServiceTag}'
-    ELSE pull_requests.label_names
-  END AS serviceTag,
+  target_sentry_issue.serviceTag,
   pull_requests.merged_at AS mergedAt,
   pull_requests.merge_commit_sha AS mergeCommit
 FROM github.pulls AS pull_requests
+CROSS JOIN target_sentry_issue
 WHERE pull_requests.owner = '${escapeSqlLiteral(config.githubOwner)}'
   AND pull_requests.repo = '${escapeSqlLiteral(config.githubRepo)}'
   AND pull_requests.state = 'closed'
   AND pull_requests.merged_at IS NOT NULL
+  AND LOWER(',' || COALESCE(pull_requests.label_names, '') || ',') LIKE '%,' || LOWER(target_sentry_issue.serviceTag) || ',%'
+  AND CAST(pull_requests.merged_at AS TIMESTAMP) BETWEEN
+    CAST(target_sentry_issue.firstSeenAt AS TIMESTAMP) - INTERVAL '30 minutes'
+    AND CAST(target_sentry_issue.firstSeenAt AS TIMESTAMP)
+ORDER BY CAST(pull_requests.merged_at AS TIMESTAMP) DESC
 LIMIT 100;
 `.trim();
 }
 
-function buildLiveCoralSlackMessagesQuery(env: CoralQueryEnvironment): string {
+function buildLiveCoralSlackMessagesQuery(
+  targetSentryIssue: LocalPrototypeData["sentryIssues"][number],
+  env: CoralQueryEnvironment
+): string {
   const config = readCoralSandboxConfig(env);
+  const escapedServiceTag = escapeSqlLiteral(targetSentryIssue.serviceTag);
+  const escapedFirstSeenAt = escapeSqlLiteral(targetSentryIssue.firstSeenAt);
 
   return `
-WITH sandbox_slack_channel AS (
+WITH target_sentry_issue AS (
+  SELECT
+    '${escapedServiceTag}' AS serviceTag,
+    '${escapedFirstSeenAt}' AS firstSeenAt
+),
+candidate_pull_requests AS (
+  SELECT
+    pull_requests.number,
+    pull_requests.merge_commit_sha AS mergeCommit
+  FROM github.pulls AS pull_requests
+  CROSS JOIN target_sentry_issue
+  WHERE pull_requests.owner = '${escapeSqlLiteral(config.githubOwner)}'
+    AND pull_requests.repo = '${escapeSqlLiteral(config.githubRepo)}'
+    AND pull_requests.state = 'closed'
+    AND pull_requests.merged_at IS NOT NULL
+    AND LOWER(',' || COALESCE(pull_requests.label_names, '') || ',') LIKE '%,' || LOWER(target_sentry_issue.serviceTag) || ',%'
+    AND CAST(pull_requests.merged_at AS TIMESTAMP) BETWEEN
+      CAST(target_sentry_issue.firstSeenAt AS TIMESTAMP) - INTERVAL '30 minutes'
+      AND CAST(target_sentry_issue.firstSeenAt AS TIMESTAMP)
+  LIMIT 100
+),
+sandbox_slack_channel AS (
   SELECT
     id,
     name
@@ -177,27 +224,83 @@ WITH sandbox_slack_channel AS (
   WHERE id = '${escapeSqlLiteral(config.slackChannelId)}'
   LIMIT 1
 )
-SELECT
+SELECT DISTINCT
   'slackMessages' AS recordSet,
   '#' || sandbox_slack_channel.name AS channel,
   COALESCE(NULLIF(slack.users.display_name, ''), NULLIF(slack.users.name, ''), slack_messages.user_id, 'unknown') AS author,
   CAST(slack_messages.ts AS VARCHAR) AS sentAt,
   slack_messages.text
 FROM sandbox_slack_channel
+CROSS JOIN target_sentry_issue
 CROSS JOIN slack.messages(channel => '${escapeSqlLiteral(config.slackChannelId)}') AS slack_messages
 LEFT JOIN slack.users ON slack.users.id = slack_messages.user_id
+LEFT JOIN candidate_pull_requests ON
+  slack_messages.text LIKE '%#' || CAST(candidate_pull_requests.number AS VARCHAR) || '%'
+  OR (
+    candidate_pull_requests.mergeCommit IS NOT NULL
+    AND slack_messages.text LIKE '%' || candidate_pull_requests.mergeCommit || '%'
+  )
+WHERE CAST(slack_messages.ts AS TIMESTAMP) BETWEEN
+    CAST(target_sentry_issue.firstSeenAt AS TIMESTAMP) - INTERVAL '30 minutes'
+    AND CAST(target_sentry_issue.firstSeenAt AS TIMESTAMP)
+  AND (
+    LOWER(slack_messages.text) LIKE '%' || LOWER(target_sentry_issue.serviceTag) || '%'
+    OR candidate_pull_requests.number IS NOT NULL
+  )
+ORDER BY sentAt DESC
 LIMIT 200;
 `.trim();
 }
 
 export type CoralQueryEnvironment = NodeJS.ProcessEnv;
 export type CoralQueryRunner = (query: string, env: CoralQueryEnvironment) => string;
+export type CoralQueryStrategy = "Single Investigation Query" | "Staged Query Fallback";
+export type CoralSandboxData = LocalPrototypeData & {
+  coralQueryStrategy: CoralQueryStrategy;
+  coralQueryFallbackReason?: string;
+};
 
 export function loadCoralSandboxData(
   sentryIssueId: string,
   env: CoralQueryEnvironment,
   runCoralQuery: CoralQueryRunner = runConfiguredCoralQuery
-): LocalPrototypeData {
+): CoralSandboxData {
+  try {
+    return loadSingleQueryCoralSandboxData(sentryIssueId, env, runCoralQuery);
+  } catch (error) {
+    return {
+      ...loadStagedCoralSandboxData(sentryIssueId, env, runCoralQuery),
+      coralQueryFallbackReason: readErrorMessage(error)
+    };
+  }
+}
+
+function loadSingleQueryCoralSandboxData(
+  sentryIssueId: string,
+  env: CoralQueryEnvironment,
+  runCoralQuery: CoralQueryRunner
+): CoralSandboxData {
+  const output = runCoralQuery(buildLiveCoralInvestigationQuery(sentryIssueId, env), env);
+  const legacyData = parseLegacyCoralData(output);
+
+  if (legacyData) {
+    return {
+      ...legacyData,
+      coralQueryStrategy: "Single Investigation Query"
+    };
+  }
+
+  return {
+    ...normalizeCoralRows(JSON.parse(output)),
+    coralQueryStrategy: "Single Investigation Query"
+  };
+}
+
+function loadStagedCoralSandboxData(
+  sentryIssueId: string,
+  env: CoralQueryEnvironment,
+  runCoralQuery: CoralQueryRunner
+): CoralSandboxData {
   const sentryOutput = runCoralQuery(
     buildLiveCoralSentryIssueQuery(sentryIssueId, env),
     env
@@ -205,7 +308,10 @@ export function loadCoralSandboxData(
   const legacyData = parseLegacyCoralData(sentryOutput);
 
   if (legacyData) {
-    return legacyData;
+    return {
+      ...legacyData,
+      coralQueryStrategy: "Staged Query Fallback"
+    };
   }
 
   const sentryIssues = normalizeCoralRows(JSON.parse(sentryOutput)).sentryIssues;
@@ -214,22 +320,24 @@ export function loadCoralSandboxData(
     return {
       sentryIssues: [],
       pullRequests: [],
-      slackMessages: []
+      slackMessages: [],
+      coralQueryStrategy: "Staged Query Fallback"
     };
   }
 
   const targetSentryIssue = sentryIssues[0];
   const pullRequests = normalizeCoralRows(
-    JSON.parse(runCoralQuery(buildLiveCoralPullRequestsQuery(targetSentryIssue.serviceTag, env), env))
+    JSON.parse(runCoralQuery(buildLiveCoralPullRequestsQuery(targetSentryIssue, env), env))
   ).pullRequests;
   const slackMessages = normalizeCoralRows(
-    JSON.parse(runCoralQuery(buildLiveCoralSlackMessagesQuery(env), env))
+    JSON.parse(runCoralQuery(buildLiveCoralSlackMessagesQuery(targetSentryIssue, env), env))
   ).slackMessages;
 
   return {
     sentryIssues,
     pullRequests,
-    slackMessages
+    slackMessages,
+    coralQueryStrategy: "Staged Query Fallback"
   };
 }
 
@@ -245,21 +353,64 @@ function runConfiguredCoralQuery(query: string, env: CoralQueryEnvironment): str
 
   readCoralSandboxConfig(env);
 
-  const result = spawnSync(command, args, {
-    input: query,
-    encoding: "utf8",
-    shell: false
-  });
+  const maxRetries = readNonNegativeInteger(env.TRACEBULLET_CORAL_QUERY_RETRIES, 1);
+  let lastError: Error | undefined;
 
-  if (result.error) {
-    throw result.error;
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    const result = spawnSync(command, args, {
+      input: query,
+      encoding: "utf8",
+      shell: false
+    });
+
+    if (result.error) {
+      lastError = result.error;
+    } else if (result.status === 0) {
+      return result.stdout;
+    } else {
+      lastError = new Error(result.stderr.trim() || "Coral query command failed.");
+    }
+
+    if (attempt >= maxRetries || !isRetryableCoralFailure(lastError.message)) {
+      break;
+    }
+
+    wait(readNonNegativeInteger(env.TRACEBULLET_CORAL_RETRY_DELAY_MS, 1000));
   }
 
-  if (result.status !== 0) {
-    throw new Error(result.stderr.trim() || "Coral query command failed.");
+  throw lastError ?? new Error("Coral query command failed.");
+}
+
+function readErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown Coral query failure.";
+}
+
+export function isRetryableCoralFailure(message: string): boolean {
+  return [
+    "Source request timed out",
+    "source API request timed out",
+    "retryable",
+    "The service is currently unavailable",
+    "PROVIDER_REQUEST_FAILED"
+  ].some((pattern) => message.includes(pattern));
+}
+
+function readNonNegativeInteger(value: string | undefined, fallback: number): number {
+  if (!value) {
+    return fallback;
   }
 
-  return result.stdout;
+  const parsed = Number.parseInt(value, 10);
+
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function wait(durationMs: number): void {
+  if (durationMs <= 0) {
+    return;
+  }
+
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, durationMs);
 }
 
 function readCoralSandboxConfig(env: CoralQueryEnvironment) {

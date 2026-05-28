@@ -21,3 +21,7 @@ The prototype shows the user flow from choosing a Sentry Issue ID, reading the S
 - Keep: sparse copy, hard-edged controls, warm status lights, the five-step flow, and only the facts needed for the next user decision.
 - Remove: dashboard density, variant switchers, and any interface that hides the investigation behind a generic chatbot.
 - Delete or promote plan: keep this prototype as a disposable visual reference while the real CLI-first implementation is built.
+
+---
+
+**2026 realization**: The direction was executed with higher craft in `ui/index.html` — now channeling Masaru Ibuka (human-scale inevitable tools, obsessive detail) + Teenage Engineering (instruments, not apps; extreme restraint; tactility through material and typography). The five positions use instrument language (LOCK → TRACE → VERIFY → ARM → CAPTURE). Primary controls have physical weight. One action per screen remains absolute law.

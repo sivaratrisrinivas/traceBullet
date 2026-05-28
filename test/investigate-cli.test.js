@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { isRetryableCoralFailure } from "../src/coralSandboxData.ts";
 import { runTraceBulletCommand } from "../src/cli.ts";
 
 test("investigation command prints a deterministic report for a known Sentry issue", async () => {
@@ -65,6 +66,24 @@ test("investigation command prints a machine report when JSON output is requeste
   assert.ok(machineReport.runtime.durationMs >= 0);
 });
 
+test("agent tool command shape uses the same machine report contract", async () => {
+  const result = runTraceBulletCommand([
+    "investigate",
+    "SENTRY-TB-1001",
+    "--source",
+    "local",
+    "--json"
+  ]);
+
+  assert.equal(result.exitCode, 0);
+
+  const machineReport = JSON.parse(result.stdout);
+
+  assert.equal(machineReport.sentryIssue.id, "SENTRY-TB-1001");
+  assert.equal(machineReport.suspectedCausingPr.number, 42);
+  assert.equal(machineReport.runtime.source, "Local Prototype Data");
+});
+
 test("investigation command can use Coral-backed Sandbox Sources for the same machine report", async () => {
   const result = runTraceBulletCommand(
     [
@@ -122,6 +141,7 @@ test("investigation command can use Coral-backed Sandbox Sources for the same ma
   assert.match(machineReport.queryRepresentation.description, /sentry\.issues/);
   assert.match(machineReport.queryRepresentation.description, /slack\.messages/);
   assert.equal(machineReport.runtime.source, "Coral Sandbox Sources");
+  assert.equal(machineReport.runtime.coralQueryStrategy, "Single Investigation Query");
 });
 
 test("investigation command normalizes Live Coral Query rows", async () => {
@@ -323,6 +343,164 @@ test("investigation command passes the Sentry Issue ID into the Live Coral Query
   assert.match(receivedQuery, /query = 'is:unresolved'/);
   assert.match(receivedQuery, /id = 'SENTRY-TB-1001'/);
   assert.match(receivedQuery, /short_id = 'SENTRY-TB-1001'/);
+});
+
+test("Coral sandbox investigation query filters candidate PRs and Slack markers before TypeScript ranking", async () => {
+  const receivedQueries = [];
+
+  const result = runTraceBulletCommand(
+    [
+      "investigate",
+      "CHECKOUT-4",
+      "--source",
+      "coral",
+      "--json"
+    ],
+    {
+      runCoralQuery: (query) => {
+        receivedQueries.push(query);
+
+        return JSON.stringify([
+          {
+            recordSet: "sentryIssues",
+            id: "CHECKOUT-4",
+            title: "TraceBullet checkout sandbox error",
+            serviceTag: "checkout",
+            firstSeenAt: "2026-05-27T20:52:04Z"
+          },
+          {
+            recordSet: "pullRequests",
+            number: 11,
+            title: "Add second checkout Coral sandbox marker",
+            author: "sivaratrisrinivas",
+            serviceTag: "checkout",
+            mergedAt: "2026-05-27T20:48:42Z",
+            mergeCommit: "ea7c0847e29ff32cd5d6db6af1f9be36fcc704bf"
+          },
+          {
+            recordSet: "slackMessages",
+            channel: "#all-coral-tracebullet",
+            author: "coral",
+            sentAt: "2026-05-27T20:50:57.474059Z",
+            text: "Merged PR #11 for checkout test error investigation"
+          }
+        ]);
+      },
+      env: coralSandboxEnv()
+    }
+  );
+
+  assert.equal(result.exitCode, 0);
+
+  const machineReport = JSON.parse(result.stdout);
+  const investigationQuery = receivedQueries[0];
+
+  assert.equal(machineReport.suspectedCausingPr.number, 11);
+  assert.equal(machineReport.runtime.coralQueryStrategy, "Single Investigation Query");
+  assert.equal(receivedQueries.length, 1);
+  assert.match(investigationQuery, /WITH target_sentry_issue AS/);
+  assert.match(investigationQuery, /FROM sentry\.issues/);
+  assert.match(investigationQuery, /FROM github\.pulls/);
+  assert.match(investigationQuery, /slack\.messages\(channel => 'C0B689JN3L6'\)/);
+  assert.match(investigationQuery, /COALESCE\(pull_requests\.label_names, ''\)/);
+  assert.match(investigationQuery, /CAST\(pull_requests\.merged_at AS TIMESTAMP\) BETWEEN/);
+  assert.match(investigationQuery, /CAST\(slack_messages\.ts AS TIMESTAMP\) BETWEEN/);
+  assert.match(investigationQuery, /INTERVAL '30 minutes'/);
+  assert.match(investigationQuery, /slack_messages\.text LIKE/);
+  assert.match(investigationQuery, /ORDER BY sentAt DESC/);
+});
+
+test("Coral sandbox investigation falls back to staged queries when the all-in-one query fails", async () => {
+  const receivedQueries = [];
+
+  const result = runTraceBulletCommand(
+    [
+      "investigate",
+      "CHECKOUT-4",
+      "--source",
+      "coral",
+      "--json"
+    ],
+    {
+      runCoralQuery: (query) => {
+        receivedQueries.push(query);
+
+        if (receivedQueries.length === 1) {
+          throw new Error("Coral rejected the all-in-one query.");
+        }
+
+        if (query.includes("FROM sentry.issues")) {
+          return JSON.stringify([
+            {
+              recordSet: "sentryIssues",
+              id: "CHECKOUT-4",
+              title: "TraceBullet checkout sandbox error",
+              serviceTag: "checkout",
+              firstSeenAt: "2026-05-27T20:52:04Z"
+            }
+          ]);
+        }
+
+        if (query.includes("slack.messages")) {
+          return JSON.stringify([
+            {
+              recordSet: "slackMessages",
+              channel: "#all-coral-tracebullet",
+              author: "coral",
+              sentAt: "2026-05-27T20:50:57.474059Z",
+              text: "Merged PR #11 for checkout test error investigation"
+            }
+          ]);
+        }
+
+        return JSON.stringify([
+          {
+            recordSet: "pullRequests",
+            number: 11,
+            title: "Add second checkout Coral sandbox marker",
+            author: "sivaratrisrinivas",
+            serviceTag: "checkout",
+            mergedAt: "2026-05-27T20:48:42Z",
+            mergeCommit: "ea7c0847e29ff32cd5d6db6af1f9be36fcc704bf"
+          }
+        ]);
+      },
+      env: coralSandboxEnv()
+    }
+  );
+
+  assert.equal(result.exitCode, 0);
+
+  const machineReport = JSON.parse(result.stdout);
+
+  assert.equal(machineReport.suspectedCausingPr.number, 11);
+  assert.equal(machineReport.runtime.coralQueryStrategy, "Staged Query Fallback");
+  assert.equal(machineReport.runtime.coralQueryFallbackReason, "Coral rejected the all-in-one query.");
+  assert.equal(receivedQueries.length, 4);
+  assert.match(receivedQueries[0], /UNION ALL/);
+  assert.match(receivedQueries[1], /FROM sentry\.issues/);
+  assert.match(receivedQueries[2], /FROM github\.pulls/);
+  assert.match(receivedQueries[3], /slack\.messages/);
+});
+
+test("Coral retry classifier recognizes transient source failures only", () => {
+  assert.equal(isRetryableCoralFailure("Source request timed out"), true);
+  assert.equal(
+    isRetryableCoralFailure(
+      "source API request timed out after 30s [GET] https://sentry.io/api/0/organizations/srinivas-m7/issues/"
+    ),
+    true
+  );
+  assert.equal(
+    isRetryableCoralFailure("The service is currently unavailable: PROVIDER_REQUEST_FAILED"),
+    true
+  );
+  assert.equal(
+    isRetryableCoralFailure(
+      "Error: Invalid argument error: Last offset 1128613955 of Utf8 is larger than values length 10"
+    ),
+    false
+  );
 });
 
 function coralSandboxEnv() {
