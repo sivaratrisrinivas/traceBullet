@@ -341,7 +341,7 @@ function loadStagedCoralSandboxData(
   };
 }
 
-function runConfiguredCoralQuery(query: string, env: CoralQueryEnvironment): string {
+export function runConfiguredCoralQuery(query: string, env: CoralQueryEnvironment): string {
   const command = env.TRACEBULLET_CORAL_QUERY_COMMAND;
   const args = env.TRACEBULLET_CORAL_QUERY_ARGS?.split(" ").filter(Boolean) ?? [];
 

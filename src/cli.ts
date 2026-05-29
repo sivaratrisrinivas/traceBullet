@@ -4,7 +4,8 @@ import {
   type CoralSandboxData,
   type CoralQueryRunner,
   buildLiveCoralInvestigationQuery,
-  loadCoralSandboxData
+  loadCoralSandboxData,
+  runConfiguredCoralQuery
 } from "./coralSandboxData.ts";
 import { localPrototypeData } from "./localPrototypeData.ts";
 import {
@@ -12,6 +13,8 @@ import {
   formatMachineReport,
   investigateSentryIssue
 } from "./investigation.ts";
+import { addOperationalEnrichment } from "./operationalEnrichment.ts";
+import { addNarrativeSummary } from "./narrative.ts";
 
 export type CommandResult = {
   stdout: string;
@@ -20,7 +23,7 @@ export type CommandResult = {
 };
 
 const USAGE =
-  "Usage: node src/cli.ts investigate <SENTRY_ISSUE_ID> [--json] [--source local|coral]";
+  "Usage: node src/cli.ts investigate <SENTRY_ISSUE_ID> [--json] [--source local|coral] [--enrich] [--narrative]";
 
 export function runTraceBulletCommand(
   args: string[],
@@ -28,6 +31,8 @@ export function runTraceBulletCommand(
 ): CommandResult {
   const [command, sentryIssueId, ...flags] = args;
   const outputFormat = flags.includes("--json") ? "json" : "deterministic";
+  const includeEnrichment = flags.includes("--enrich");
+  const includeNarrative = flags.includes("--narrative");
   const source = readSourceFlag(flags);
   const env = options.env ?? readDefaultCliEnvironment(source);
 
@@ -91,7 +96,7 @@ export function runTraceBulletCommand(
     };
   }
 
-  const reportWithRuntime = {
+  let reportWithRuntime = {
     ...report,
     runtime: {
       ...report.runtime,
@@ -99,6 +104,18 @@ export function runTraceBulletCommand(
       durationMs: Math.max(0, Math.round(performance.now() - startedAt))
     }
   };
+
+  if (includeEnrichment) {
+    reportWithRuntime = addOperationalEnrichment(
+      reportWithRuntime,
+      env,
+      options.runCoralQuery ?? readOptionalCoralRunner(env)
+    );
+  }
+
+  if (includeNarrative) {
+    reportWithRuntime = addNarrativeSummary(reportWithRuntime, env);
+  }
 
   return {
     stdout:
@@ -131,6 +148,10 @@ function readSourceFlag(flags: string[]): "local" | "coral" {
   const sourceFlagValue = sourceFlagIndex >= 0 ? flags[sourceFlagIndex + 1] : undefined;
 
   return sourceFlagValue === "coral" ? "coral" : "local";
+}
+
+function readOptionalCoralRunner(env: NodeJS.ProcessEnv): CoralQueryRunner | undefined {
+  return env.TRACEBULLET_CORAL_QUERY_COMMAND ? runConfiguredCoralQuery : undefined;
 }
 
 function readDefaultCliEnvironment(source: "local" | "coral"): NodeJS.ProcessEnv {

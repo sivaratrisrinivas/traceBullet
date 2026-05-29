@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isRetryableCoralFailure } from "../src/coralSandboxData.ts";
 import { runTraceBulletCommand } from "../src/cli.ts";
+import { handleMcpMessage } from "../src/mcpServerCore.ts";
+import { runAgentToolRequest } from "../src/agentToolCore.ts";
 
 test("investigation command prints a deterministic report for a known Sentry issue", async () => {
   const result = runTraceBulletCommand([
@@ -82,6 +84,244 @@ test("agent tool command shape uses the same machine report contract", async () 
   assert.equal(machineReport.sentryIssue.id, "SENTRY-TB-1001");
   assert.equal(machineReport.suspectedCausingPr.number, 42);
   assert.equal(machineReport.runtime.source, "Local Prototype Data");
+});
+
+test("agent tool adapter can request enrichment and narrative", async () => {
+  const previousMode = process.env.TRACEBULLET_NARRATIVE_MODE;
+
+  process.env.TRACEBULLET_NARRATIVE_MODE = "deterministic";
+
+  try {
+    const result = runAgentToolRequest(
+      JSON.stringify({
+        sentryIssueId: "SENTRY-TB-1001",
+        source: "local",
+        includeEnrichment: true,
+        includeNarrative: true
+      })
+    );
+
+    assert.equal(result.exitCode, 0);
+
+    const machineReport = JSON.parse(result.stdout);
+
+    assert.equal(machineReport.operationalEnrichment.mode, "Demo Enrichment Data");
+    assert.equal(machineReport.narrative.mode, "Deterministic Narrative");
+  } finally {
+    if (previousMode === undefined) {
+      delete process.env.TRACEBULLET_NARRATIVE_MODE;
+    } else {
+      process.env.TRACEBULLET_NARRATIVE_MODE = previousMode;
+    }
+  }
+});
+
+test("investigation command can attach deterministic operational enrichment", async () => {
+  const result = runTraceBulletCommand([
+    "investigate",
+    "SENTRY-TB-1001",
+    "--json",
+    "--enrich"
+  ]);
+
+  assert.equal(result.exitCode, 0);
+
+  const machineReport = JSON.parse(result.stdout);
+
+  assert.equal(machineReport.operationalEnrichment.mode, "Demo Enrichment Data");
+  assert.equal(machineReport.operationalEnrichment.datadog.service, "checkout");
+  assert.equal(machineReport.operationalEnrichment.pagerDuty.urgency, "high");
+  assert.match(
+    machineReport.operationalEnrichment.notes[0],
+    /Live Coral Enrichment is disabled/
+  );
+});
+
+test("investigation command can attach live Coral operational enrichment rows", async () => {
+  const enrichmentQueries = [];
+  const result = runTraceBulletCommand(
+    [
+      "investigate",
+      "SENTRY-TB-1001",
+      "--source",
+      "coral",
+      "--json",
+      "--enrich"
+    ],
+    {
+      runCoralQuery: (query) => {
+        if (query.includes("datadogSignals")) {
+          enrichmentQueries.push(query);
+
+          return JSON.stringify([
+            {
+              recordSet: "datadogSignals",
+              service: "checkout",
+              metric: "tracebullet.error_rate",
+              observedAt: "2026-05-25T10:34:00.000Z",
+              value: 4.8,
+              unit: "x baseline",
+              summary: "Error-rate spike observed near the Sentry first-seen timestamp."
+            }
+          ]);
+        }
+
+        if (query.includes("pagerDutyIncidents")) {
+          enrichmentQueries.push(query);
+
+          return JSON.stringify([
+            {
+              recordSet: "pagerDutyIncidents",
+              incidentId: "PD-CHECKOUT-SANDBOX",
+              title: "Checkout fatal error spike",
+              status: "triggered",
+              urgency: "high",
+              triggeredAt: "2026-05-25T10:35:00.000Z",
+              summary: "PagerDuty incident overlaps the TraceBullet Investigation Window."
+            }
+          ]);
+        }
+
+        return JSON.stringify({
+          sentryIssues: [
+            {
+              id: "SENTRY-TB-1001",
+              title: "Checkout payment confirmation fails after submit",
+              serviceTag: "checkout",
+              firstSeenAt: "2026-05-25T10:35:00.000Z"
+            }
+          ],
+          pullRequests: [
+            {
+              number: 42,
+              title: "Route checkout confirmation through payment intent status",
+              author: "niko",
+              serviceTag: "checkout",
+              mergedAt: "2026-05-25T10:30:00.000Z",
+              mergeCommit: "f00db42"
+            }
+          ],
+          slackMessages: []
+        });
+      },
+      env: {
+        ...coralSandboxEnv(),
+        TRACEBULLET_ENABLE_LIVE_ENRICHMENTS: "true",
+        TRACEBULLET_DATADOG_ENRICHMENT_QUERY:
+          "SELECT 'datadogSignals' AS recordSet, '{{SERVICE_TAG}}' AS service;",
+        TRACEBULLET_PAGERDUTY_ENRICHMENT_QUERY:
+          "SELECT 'pagerDutyIncidents' AS recordSet, '{{SENTRY_ISSUE_ID}}' AS incidentId;"
+      }
+    }
+  );
+
+  assert.equal(result.exitCode, 0);
+
+  const machineReport = JSON.parse(result.stdout);
+
+  assert.equal(machineReport.operationalEnrichment.mode, "Live Coral Enrichment");
+  assert.equal(machineReport.operationalEnrichment.datadog.metric, "tracebullet.error_rate");
+  assert.equal(machineReport.operationalEnrichment.pagerDuty.incidentId, "PD-CHECKOUT-SANDBOX");
+  assert.equal(enrichmentQueries.length, 2);
+  assert.match(enrichmentQueries[0], /checkout/);
+  assert.match(enrichmentQueries[1], /SENTRY-TB-1001/);
+});
+
+test("live operational enrichment falls back when query templates are not configured", async () => {
+  const result = runTraceBulletCommand(
+    [
+      "investigate",
+      "SENTRY-TB-1001",
+      "--json",
+      "--enrich"
+    ],
+    {
+      runCoralQuery: () => {
+        throw new Error("No enrichment query should be executed.");
+      },
+      env: {
+        ...coralSandboxEnv(),
+        TRACEBULLET_ENABLE_LIVE_ENRICHMENTS: "true"
+      }
+    }
+  );
+
+  assert.equal(result.exitCode, 0);
+
+  const machineReport = JSON.parse(result.stdout);
+
+  assert.equal(machineReport.operationalEnrichment.mode, "Demo Enrichment Data");
+  assert.match(
+    machineReport.operationalEnrichment.notes.join(" "),
+    /no Datadog or PagerDuty enrichment query template/
+  );
+});
+
+test("investigation command can attach a deterministic narrative fallback", async () => {
+  const result = runTraceBulletCommand(
+    [
+      "investigate",
+      "SENTRY-TB-1001",
+      "--json",
+      "--narrative"
+    ],
+    {
+      env: {
+        TRACEBULLET_NARRATIVE_MODE: "deterministic"
+      }
+    }
+  );
+
+  assert.equal(result.exitCode, 0);
+
+  const machineReport = JSON.parse(result.stdout);
+
+  assert.equal(machineReport.narrative.mode, "Deterministic Narrative");
+  assert.match(machineReport.narrative.text, /Suspected Causing PR/);
+  assert.match(machineReport.narrative.text, /PR #42/);
+  assert.doesNotMatch(machineReport.narrative.text, /root cause/i);
+});
+
+test("MCP server exposes the TraceBullet investigation tool over stdio", async () => {
+  const responses = [
+    handleMcpMessage({
+      jsonrpc: "2.0",
+      method: "notifications/initialized"
+    }),
+    handleMcpMessage({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-06-18"
+      }
+    }),
+    handleMcpMessage({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/list"
+    }),
+    handleMcpMessage({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: {
+        name: "tracebullet_investigate",
+        arguments: {
+          sentryIssueId: "SENTRY-TB-1001",
+          source: "local",
+          outputFormat: "json",
+          includeNarrative: true
+        }
+      }
+    })
+  ];
+
+  assert.equal(responses[0], undefined);
+  assert.equal(responses[1].result.serverInfo.name, "tracebullet");
+  assert.equal(responses[2].result.tools[0].name, "tracebullet_investigate");
+  assert.match(responses[3].result.content[0].text, /SENTRY-TB-1001/);
+  assert.match(responses[3].result.content[0].text, /Suspected Causing PR/);
 });
 
 test("investigation command can use Coral-backed Sandbox Sources for the same machine report", async () => {

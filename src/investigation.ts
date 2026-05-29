@@ -40,6 +40,40 @@ export type InvestigationReport = {
     investigationWindowMinutes: number;
     durationMs: number;
   };
+  operationalEnrichment?: OperationalEnrichment;
+  narrative?: NarrativeSummary;
+};
+
+export type OperationalEnrichment = {
+  mode: "Live Coral Enrichment" | "Demo Enrichment Data" | "Unavailable";
+  datadog?: {
+    service: string;
+    metric: string;
+    observedAt: string;
+    value: number;
+    unit: string;
+    summary: string;
+  };
+  pagerDuty?: {
+    incidentId: string;
+    title: string;
+    status: string;
+    urgency: string;
+    triggeredAt: string;
+    summary: string;
+  };
+  queryRepresentation?: {
+    datadog?: string;
+    pagerDuty?: string;
+  };
+  notes: string[];
+};
+
+export type NarrativeSummary = {
+  mode: "Local LLM Narrative" | "Deterministic Narrative" | "Unavailable";
+  model?: string;
+  text: string;
+  notes: string[];
 };
 
 export function investigateSentryIssue(
@@ -142,7 +176,9 @@ export function formatDeterministicReport(report: InvestigationReport): string {
     otherCandidatePrs,
     evidence,
     queryRepresentation,
-    runtime
+    runtime,
+    operationalEnrichment,
+    narrative
   } = report;
   const suspectedCausingPrLines = suspectedCausingPr
     ? [
@@ -187,6 +223,40 @@ export function formatDeterministicReport(report: InvestigationReport): string {
           : "- unavailable: missing merge commit"
       ]
     : [];
+  const enrichmentLines = operationalEnrichment
+    ? [
+        "",
+        "Operational Enrichment",
+        `- mode: ${operationalEnrichment.mode}`,
+        ...(operationalEnrichment.datadog
+          ? [
+              `- Datadog: ${operationalEnrichment.datadog.summary}`,
+              `  metric: ${operationalEnrichment.datadog.metric}`,
+              `  value: ${operationalEnrichment.datadog.value} ${operationalEnrichment.datadog.unit}`,
+              `  observed at: ${operationalEnrichment.datadog.observedAt}`
+            ]
+          : ["- Datadog: unavailable"]),
+        ...(operationalEnrichment.pagerDuty
+          ? [
+              `- PagerDuty: ${operationalEnrichment.pagerDuty.summary}`,
+              `  incident: ${operationalEnrichment.pagerDuty.incidentId}`,
+              `  status: ${operationalEnrichment.pagerDuty.status}`,
+              `  triggered at: ${operationalEnrichment.pagerDuty.triggeredAt}`
+            ]
+          : ["- PagerDuty: unavailable"]),
+        ...operationalEnrichment.notes.map((note) => `- note: ${note}`)
+      ]
+    : [];
+  const narrativeLines = narrative
+    ? [
+        "",
+        "Narrative Summary",
+        `- mode: ${narrative.mode}`,
+        ...(narrative.model ? [`- model: ${narrative.model}`] : []),
+        `- text: ${narrative.text}`,
+        ...narrative.notes.map((note) => `- note: ${note}`)
+      ]
+    : [];
 
   return [
     "Deterministic Report",
@@ -209,6 +279,8 @@ export function formatDeterministicReport(report: InvestigationReport): string {
     "Query Representation",
     `- source: ${queryRepresentation.source}`,
     `- description: ${queryRepresentation.description}`,
+    ...enrichmentLines,
+    ...narrativeLines,
     "",
     "Runtime",
     `- source: ${runtime.source}`,
