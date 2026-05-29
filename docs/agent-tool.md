@@ -18,6 +18,12 @@ The server exposes one tool:
 tracebullet_investigate
 ```
 
+It also exposes:
+
+- Resources for the domain context, demo readiness notes, and agent-tool documentation.
+- A prompt named `tracebullet_investigation_brief` that instructs an agent to use TraceBullet without overclaiming root cause.
+- Structured tool output under `structuredContent.report`, so MCP clients can read the Machine Report without parsing display text.
+
 Tool arguments:
 
 ```json
@@ -77,6 +83,7 @@ node src/cli.ts investigate CHECKOUT-4 --source coral --json
 ## Boundaries
 
 - The MCP server is a local stdio server, not a hosted service.
+- The MCP server exposes resources and prompts, but the investigation tool still delegates to the Investigation Command.
 - The JSON stdin/stdout adapter is still available for simple agent use.
 - Narrative Summary output is formatting only, not Evidence.
 - Operational Enrichment is optional context, not matching proof.

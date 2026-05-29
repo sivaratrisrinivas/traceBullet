@@ -34,6 +34,7 @@ Evidence:
 - CLI entrypoint: `src/cli.ts`
 - Agent-facing tool: `scripts/tracebullet-agent-tool.mjs`
 - MCP server: `scripts/tracebullet-mcp-server.mjs`
+- Local app server: `scripts/tracebullet-app-server.mjs`
 - Core matching and formatting: `src/investigation.ts`
 - Live Coral data path: `src/coralSandboxData.ts`
 - Optional enrichment: `src/operationalEnrichment.ts`
@@ -87,6 +88,7 @@ Evidence:
 - JSON Machine Report for future UI rendering.
 - JSON stdin/stdout agent adapter.
 - Local MCP Investigation Tool.
+- Local TraceBullet App Server.
 - React investigation UI: `ui/index.html`
 - Suggested Revert Command is copyable but not executed.
 - Accepted prototype direction: `prototypes/tracebullet-app-prototype/NOTES.md`
@@ -94,6 +96,7 @@ Evidence:
 Known boundary:
 
 - The UI renders Machine Report JSON; it does not run a separate investigation engine.
+- The app server delegates to the Investigation Command; it does not run a separate investigation engine.
 - Narrative Summary output is optional formatting, not Evidence.
 
 ## Learning And Growth

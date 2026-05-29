@@ -21,6 +21,7 @@ Those API calls are necessary to read live sandbox records. TraceBullet should s
 - JSON and human-readable reports unless the user exports or shares them.
 - Retry settings for transient Coral source failures.
 - Local LLM Narrative requests when Ollama is running on `localhost`.
+- TraceBullet App Server requests and responses on the local host.
 - Demo Enrichment Data when optional Datadog/PagerDuty live sources are not configured.
 
 ## Token Handling

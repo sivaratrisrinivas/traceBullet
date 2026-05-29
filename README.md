@@ -63,6 +63,13 @@ Open the React UI:
 npm run ui:dev
 ```
 
+Run the full local app after building the UI:
+
+```bash
+npm run ui:build
+npm run app:server
+```
+
 ## Demo In 60 Seconds
 
 Run the verified live Coral investigation:
@@ -93,16 +100,17 @@ Start the MCP server for agent clients:
 npm run mcp:server
 ```
 
-Open the React UI:
+Open the full local React app:
 
 ```bash
-npm run ui:dev
+npm run ui:build
+npm run app:server
 ```
 
 Then open:
 
 ```text
-http://localhost:4175
+http://127.0.0.1:4180
 ```
 
 TraceBullet's honest claim:
@@ -224,7 +232,7 @@ For local execution and token-handling boundaries, see [docs/privacy.md](docs/pr
 
 For the MCP server and JSON stdin/stdout agent adapter, see [docs/agent-tool.md](docs/agent-tool.md).
 
-For the React investigation interface, see [ui/README.md](ui/README.md).
+For the React investigation interface and local app server, see [ui/README.md](ui/README.md).
 
 ## Posting A Slack Marker
 

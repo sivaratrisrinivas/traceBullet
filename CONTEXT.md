@@ -120,6 +120,10 @@ _Avoid_: Fake Coral output, production telemetry
 A local Model Context Protocol tool that exposes the Investigation Command to agent clients.
 _Avoid_: Separate investigation engine, hosted service
 
+**TraceBullet App Server**:
+A local HTTP surface that lets the React UI request an investigation while still using the Investigation Command as the source of truth.
+_Avoid_: Hosted backend, second investigation engine
+
 **Suggested Revert Command**:
 A copyable `git revert` command shown as a possible remediation step without being executed by TraceBullet.
 _Avoid_: Automatic rollback, one-click revert
@@ -163,6 +167,7 @@ _Avoid_: Product hardening, new feature work, production readiness
 - **Operational Enrichment** can add Datadog or PagerDuty context, but it does not decide the **Suspected Causing PR**.
 - **Live Coral Enrichment** must be labeled separately from **Demo Enrichment Data**.
 - An **MCP Investigation Tool** wraps the **Investigation Command** and must not become a second source of truth.
+- A **TraceBullet App Server** wraps the **Investigation Command** and must not become a second source of truth.
 - A **Deterministic Report** can include a **Suggested Revert Command** when the Suspected Causing PR has a merge commit.
 - **Demo Readiness** follows a completed implementation slice and focuses on making the existing **Investigation Command** safe and explainable.
 
@@ -189,6 +194,7 @@ _Avoid_: Product hardening, new feature work, production readiness
 - Datadog and PagerDuty could be mistaken for required proof. Resolved: they are **Operational Enrichment**, not required **Evidence**.
 - Fallback telemetry could be mistaken for live Coral output. Resolved: label it **Demo Enrichment Data**, never **Live Coral Enrichment**.
 - Agent integration could create a second investigation path. Resolved: the **MCP Investigation Tool** wraps the **Investigation Command**.
+- UI integration could create a second investigation path. Resolved: the **TraceBullet App Server** wraps the **Investigation Command**.
 - The report contents were unclear. Resolved: include Sentry issue, Suspected Causing PR, Evidence, other candidates, missing proof, SQL, and runtime **Report Sections**.
 - The SQL author was unclear. Resolved: the MVP uses an **Investigation Query Template**, not AI-generated SQL.
 - Rollback behavior was risky. Resolved: show a **Suggested Revert Command** but do not execute it.

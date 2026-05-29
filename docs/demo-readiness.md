@@ -28,7 +28,8 @@ Expected result:
 - The CLI runs locally.
 - The MCP Investigation Tool runs locally over stdio.
 - The JSON stdin/stdout adapter runs locally.
-- The React UI runs locally.
+- The TraceBullet App Server runs locally and lets the React UI call the Investigation Command.
+- The React UI runs locally and can request a fresh Machine Report.
 - Coral queries live sandbox Sentry, GitHub, and Slack sources.
 - The report is generated from live Coral query results.
 - The output exposes the Coral SQL query representation.
@@ -94,7 +95,8 @@ TraceBullet satisfies the core TraceBullet objective from the blueprint:
 - Matching is deterministic before any LLM narrative.
 - The SQL/query representation is visible for trust.
 - The local MCP server exposes the same Investigation Command to agent clients.
-- The React UI renders the Machine Report without creating a separate source of truth.
+- The TraceBullet App Server exposes the same Investigation Command to the React UI.
+- The React UI requests and renders the Machine Report without creating a separate source of truth.
 - The suggested revert command is copyable but not executed.
 
 ## Remaining Gaps

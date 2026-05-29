@@ -69,13 +69,21 @@ const sampleReport = {
   }
 };
 
-const screens = ["Trace", "Evidence", "Signals", "SQL", "Narrative", "Import"];
+const screens = ["Investigate", "Trace", "Evidence", "Signals", "SQL", "Narrative", "Import"];
 
 export function App() {
   const [report, setReport] = useState(sampleReport);
-  const [screen, setScreen] = useState("Trace");
+  const [screen, setScreen] = useState("Investigate");
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
+  const [apiError, setApiError] = useState("");
+  const [isInvestigating, setIsInvestigating] = useState(false);
+  const [form, setForm] = useState({
+    sentryIssueId: "SENTRY-TB-1001",
+    source: "local",
+    includeNarrative: true,
+    includeEnrichment: true
+  });
 
   const revertCommand = report.suspectedCausingPr?.mergeCommit
     ? `git revert ${report.suspectedCausingPr.mergeCommit}`
@@ -108,6 +116,17 @@ export function App() {
         return <SqlView report={report} />;
       case "Narrative":
         return <Narrative report={report} />;
+      case "Investigate":
+        return (
+          <InvestigatePanel
+            apiError={apiError}
+            form={form}
+            isInvestigating={isInvestigating}
+            report={report}
+            setForm={setForm}
+            investigate={investigate}
+          />
+        );
       case "Import":
         return (
           <ImportPanel
@@ -119,6 +138,7 @@ export function App() {
               setReport(sampleReport);
               setDraft("");
               setError("");
+              setApiError("");
               setScreen("Trace");
             }}
           />
@@ -126,7 +146,34 @@ export function App() {
       default:
         return <Trace report={report} status={status} revertCommand={revertCommand} />;
     }
-  }, [draft, error, report, revertCommand, screen, status]);
+  }, [apiError, draft, error, form, isInvestigating, report, revertCommand, screen, status]);
+
+  async function investigate() {
+    setIsInvestigating(true);
+    setApiError("");
+
+    try {
+      const response = await fetch("/api/investigate", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(form)
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "TraceBullet investigation failed.");
+      }
+
+      setReport(payload.report);
+      setScreen("Trace");
+    } catch (caught) {
+      setApiError(caught instanceof Error ? caught.message : "TraceBullet investigation failed.");
+    } finally {
+      setIsInvestigating(false);
+    }
+  }
 
   return (
     <main className="app">
@@ -169,6 +216,88 @@ export function App() {
         </aside>
       </section>
     </main>
+  );
+}
+
+function InvestigatePanel({
+  apiError,
+  form,
+  isInvestigating,
+  report,
+  setForm,
+  investigate
+}) {
+  return (
+    <div className="panel investigate-panel">
+      <PanelTitle kicker="INVESTIGATE" title="Run TraceBullet" />
+      <div className="investigation-form">
+        <label>
+          <span>Sentry Issue ID</span>
+          <input
+            value={form.sentryIssueId}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                sentryIssueId: event.target.value
+              }))
+            }
+          />
+        </label>
+        <label>
+          <span>Source</span>
+          <select
+            value={form.source}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                source: event.target.value
+              }))
+            }
+          >
+            <option value="local">Local Prototype Data</option>
+            <option value="coral">Coral Sandbox Sources</option>
+          </select>
+        </label>
+        <label className="check-row">
+          <input
+            checked={form.includeNarrative}
+            type="checkbox"
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                includeNarrative: event.target.checked
+              }))
+            }
+          />
+          <span>Local LLM Narrative</span>
+        </label>
+        <label className="check-row">
+          <input
+            checked={form.includeEnrichment}
+            type="checkbox"
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                includeEnrichment: event.target.checked
+              }))
+            }
+          />
+          <span>Operational Enrichment</span>
+        </label>
+      </div>
+      {apiError ? <p className="error">{apiError}</p> : null}
+      <div className="button-row">
+        <button type="button" disabled={isInvestigating} onClick={investigate}>
+          {isInvestigating ? "Running" : "Investigate"}
+        </button>
+      </div>
+      <div className="run-summary">
+        <Fact label="Current Issue" value={report.sentryIssue.id} />
+        <Fact label="Narrative" value={report.narrative?.mode ?? "Off"} />
+        <Fact label="Enrichment" value={report.operationalEnrichment?.mode ?? "Off"} />
+        <Fact label="Source" value={report.runtime.source} />
+      </div>
+    </div>
   );
 }
 

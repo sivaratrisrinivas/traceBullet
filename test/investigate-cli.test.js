@@ -4,6 +4,10 @@ import { isRetryableCoralFailure } from "../src/coralSandboxData.ts";
 import { runTraceBulletCommand } from "../src/cli.ts";
 import { handleMcpMessage } from "../src/mcpServerCore.ts";
 import { runAgentToolRequest } from "../src/agentToolCore.ts";
+import {
+  handleAppHealth,
+  handleAppInvestigationRequest
+} from "../src/appServerCore.ts";
 
 test("investigation command prints a deterministic report for a known Sentry issue", async () => {
   const result = runTraceBulletCommand([
@@ -322,6 +326,66 @@ test("MCP server exposes the TraceBullet investigation tool over stdio", async (
   assert.equal(responses[2].result.tools[0].name, "tracebullet_investigate");
   assert.match(responses[3].result.content[0].text, /SENTRY-TB-1001/);
   assert.match(responses[3].result.content[0].text, /Suspected Causing PR/);
+  assert.equal(responses[3].result.structuredContent.report.sentryIssue.id, "SENTRY-TB-1001");
+  assert.equal(responses[3].result.isError, false);
+});
+
+test("MCP server exposes domain resources and investigation prompt", async () => {
+  const resourceList = handleMcpMessage({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "resources/list"
+  });
+  const resourceRead = handleMcpMessage({
+    jsonrpc: "2.0",
+    id: 2,
+    method: "resources/read",
+    params: {
+      uri: "tracebullet://context/domain"
+    }
+  });
+  const promptList = handleMcpMessage({
+    jsonrpc: "2.0",
+    id: 3,
+    method: "prompts/list"
+  });
+  const promptGet = handleMcpMessage({
+    jsonrpc: "2.0",
+    id: 4,
+    method: "prompts/get",
+    params: {
+      name: "tracebullet_investigation_brief",
+      arguments: {
+        sentryIssueId: "SENTRY-TB-1001",
+        source: "local"
+      }
+    }
+  });
+
+  assert.match(resourceList.result.resources[0].uri, /^tracebullet:\/\//);
+  assert.match(resourceRead.result.contents[0].text, /Suspected Causing PR/);
+  assert.equal(promptList.result.prompts[0].name, "tracebullet_investigation_brief");
+  assert.match(promptGet.result.messages[0].content.text, /SENTRY-TB-1001/);
+  assert.match(promptGet.result.messages[0].content.text, /includeNarrative=true/);
+});
+
+test("app API core runs investigation with narrative enabled by default", async () => {
+  const health = handleAppHealth();
+  const response = handleAppInvestigationRequest(
+    {
+      sentryIssueId: "SENTRY-TB-1001",
+      source: "local"
+    },
+    {
+      TRACEBULLET_NARRATIVE_MODE: "deterministic"
+    }
+  );
+
+  assert.equal(health.status, 200);
+  assert.equal(response.status, 200);
+  assert.equal(response.body.report.sentryIssue.id, "SENTRY-TB-1001");
+  assert.equal(response.body.report.narrative.mode, "Deterministic Narrative");
+  assert.equal(response.body.report.operationalEnrichment.mode, "Demo Enrichment Data");
 });
 
 test("investigation command can use Coral-backed Sandbox Sources for the same machine report", async () => {

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "agent:tool": "node scripts/tracebullet-agent-tool.mjs",
+    "app:server": "node scripts/tracebullet-app-server.mjs",
     "mcp:server": "node scripts/tracebullet-mcp-server.mjs",
     "ui:dev": "vite --host 127.0.0.1 --port 4175 ui",
     "ui:build": "vite build ui --outDir ../dist/ui --emptyOutDir",
