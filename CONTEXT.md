@@ -96,6 +96,30 @@ _Avoid_: Separate result model, hidden output
 An optional human-readable explanation generated from the Deterministic Report.
 _Avoid_: Source of truth, primary evidence
 
+**Local LLM Narrative**:
+A Narrative Summary produced by a locally running model from the Machine Report only.
+_Avoid_: Cloud inference, new evidence, root-cause reasoning
+
+**Deterministic Narrative**:
+A template-generated Narrative Summary used when the local model is disabled or unavailable.
+_Avoid_: Fake model output, degraded proof
+
+**Operational Enrichment**:
+Optional Datadog and PagerDuty context attached after the Suspected Causing PR is identified.
+_Avoid_: Required evidence, replacement matching logic
+
+**Live Coral Enrichment**:
+Operational Enrichment queried from optional live Coral sources.
+_Avoid_: Primary investigation query, guaranteed availability
+
+**Demo Enrichment Data**:
+Clearly labeled fallback Operational Enrichment used when optional live Datadog or PagerDuty sources are not configured.
+_Avoid_: Fake Coral output, production telemetry
+
+**MCP Investigation Tool**:
+A local Model Context Protocol tool that exposes the Investigation Command to agent clients.
+_Avoid_: Separate investigation engine, hosted service
+
 **Suggested Revert Command**:
 A copyable `git revert` command shown as a possible remediation step without being executed by TraceBullet.
 _Avoid_: Automatic rollback, one-click revert
@@ -134,6 +158,11 @@ _Avoid_: Product hardening, new feature work, production readiness
 - A **Deterministic Report** is made of **Report Sections**.
 - A **Machine Report** contains the same facts as the **Deterministic Report**.
 - A **Narrative Summary** can be added later, but it must only restate the **Deterministic Report**.
+- A **Local LLM Narrative** must only summarize the **Machine Report**.
+- A **Deterministic Narrative** preserves the **Narrative Summary** contract when the local model is unavailable.
+- **Operational Enrichment** can add Datadog or PagerDuty context, but it does not decide the **Suspected Causing PR**.
+- **Live Coral Enrichment** must be labeled separately from **Demo Enrichment Data**.
+- An **MCP Investigation Tool** wraps the **Investigation Command** and must not become a second source of truth.
 - A **Deterministic Report** can include a **Suggested Revert Command** when the Suspected Causing PR has a merge commit.
 - **Demo Readiness** follows a completed implementation slice and focuses on making the existing **Investigation Command** safe and explainable.
 
@@ -156,6 +185,10 @@ _Avoid_: Product hardening, new feature work, production readiness
 - Real integrations should not touch private work data. Resolved: configure GitHub, Sentry, and Slack with **Sandbox Sources** only.
 - The initial product surface was unclear. Resolved: build the **Investigation Command** before a web dashboard.
 - The role of an LLM was unclear. Resolved: the MVP produces a **Deterministic Report** first; any **Narrative Summary** is optional formatting.
+- Optional LLM output could overclaim. Resolved: a **Local LLM Narrative** only restates the **Machine Report**, and **Deterministic Narrative** is the fallback.
+- Datadog and PagerDuty could be mistaken for required proof. Resolved: they are **Operational Enrichment**, not required **Evidence**.
+- Fallback telemetry could be mistaken for live Coral output. Resolved: label it **Demo Enrichment Data**, never **Live Coral Enrichment**.
+- Agent integration could create a second investigation path. Resolved: the **MCP Investigation Tool** wraps the **Investigation Command**.
 - The report contents were unclear. Resolved: include Sentry issue, Suspected Causing PR, Evidence, other candidates, missing proof, SQL, and runtime **Report Sections**.
 - The SQL author was unclear. Resolved: the MVP uses an **Investigation Query Template**, not AI-generated SQL.
 - Rollback behavior was risky. Resolved: show a **Suggested Revert Command** but do not execute it.

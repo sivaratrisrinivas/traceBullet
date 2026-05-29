@@ -17,11 +17,13 @@ Evidence:
 - The Machine Report exposes the Coral SQL query representation.
 - The Machine Report exposes the live Coral query strategy.
 - Retryable upstream source timeouts are retried for demo resilience.
+- Optional Datadog/PagerDuty Operational Enrichment can be queried through Coral when explicit enrichment query templates are configured.
 
 Honest boundary:
 
 - TypeScript still performs defensive ranking and report formatting.
 - Do not claim Coral alone chooses the final Suspected Causing PR.
+- Do not claim Demo Enrichment Data came from live Datadog or PagerDuty APIs.
 
 ## Technical Implementation
 
@@ -31,8 +33,11 @@ Evidence:
 
 - CLI entrypoint: `src/cli.ts`
 - Agent-facing tool: `scripts/tracebullet-agent-tool.mjs`
+- MCP server: `scripts/tracebullet-mcp-server.mjs`
 - Core matching and formatting: `src/investigation.ts`
 - Live Coral data path: `src/coralSandboxData.ts`
+- Optional enrichment: `src/operationalEnrichment.ts`
+- Optional narrative: `src/narrative.ts`
 - Local sample data: `src/localPrototypeData.ts`
 - Regression tests: `test/investigate-cli.test.js`
 
@@ -81,14 +86,15 @@ Evidence:
 - Human-readable Deterministic Report.
 - JSON Machine Report for future UI rendering.
 - JSON stdin/stdout agent adapter.
-- Static investigation UI: `ui/index.html`
+- Local MCP Investigation Tool.
+- React investigation UI: `ui/index.html`
 - Suggested Revert Command is copyable but not executed.
 - Accepted prototype direction: `prototypes/tracebullet-app-prototype/NOTES.md`
 
-Known gap:
+Known boundary:
 
-- The polished dashboard is not implemented yet.
-- This was an intentional scope cut in favor of making the investigation command work first.
+- The UI renders Machine Report JSON; it does not run a separate investigation engine.
+- Narrative Summary output is optional formatting, not Evidence.
 
 ## Learning And Growth
 

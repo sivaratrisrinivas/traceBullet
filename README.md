@@ -12,6 +12,7 @@ Requirements:
 
 - Node.js 24 or newer
 - Coral configured if you want to query live sandbox data
+- Ollama with `qwen3:0.6b` if you want Local LLM Narrative output
 
 Run the local sample data:
 
@@ -38,16 +39,28 @@ Run tests:
 npm test
 ```
 
-Run the thin agent-facing tool:
+Run with optional Operational Enrichment and Narrative Summary:
+
+```bash
+node src/cli.ts investigate SENTRY-TB-1001 --json --enrich --narrative
+```
+
+Run the MCP Investigation Tool:
+
+```bash
+npm run mcp:server
+```
+
+Run the JSON stdin/stdout adapter:
 
 ```bash
 echo '{"sentryIssueId":"SENTRY-TB-1001","source":"local"}' | npm run agent:tool
 ```
 
-Open the static UI:
+Open the React UI:
 
-```text
-ui/index.html
+```bash
+npm run ui:dev
 ```
 
 ## Demo In 60 Seconds
@@ -55,7 +68,7 @@ ui/index.html
 Run the verified live Coral investigation:
 
 ```bash
-node src/cli.ts investigate CHECKOUT-4 --source coral --json
+node src/cli.ts investigate CHECKOUT-4 --source coral --json --enrich --narrative
 ```
 
 Expected result:
@@ -65,6 +78,8 @@ Expected result:
 - Time Match: about `3.37` minutes before first seen
 - Slack Context: `Merged PR #11 for checkout test error investigation`
 - Coral query strategy: `Single Investigation Query`
+- Optional Operational Enrichment: `Live Coral Enrichment` or labeled `Demo Enrichment Data`
+- Optional Narrative Summary: `Local LLM Narrative` or `Deterministic Narrative`
 
 Run the same investigation through the agent-facing adapter:
 
@@ -72,10 +87,16 @@ Run the same investigation through the agent-facing adapter:
 echo '{"sentryIssueId":"CHECKOUT-4","source":"coral"}' | npm run agent:tool
 ```
 
-Open the static UI:
+Start the MCP server for agent clients:
 
 ```bash
-python3 -m http.server 4175 --directory ui
+npm run mcp:server
+```
+
+Open the React UI:
+
+```bash
+npm run ui:dev
 ```
 
 Then open:
@@ -87,6 +108,8 @@ http://localhost:4175
 TraceBullet's honest claim:
 
 > TraceBullet uses Coral to query live Sentry, GitHub, and Slack sandbox sources locally, filters Candidate PRs and Slack Context through SQL, then applies deterministic TypeScript ranking and report formatting.
+
+Optional Datadog/PagerDuty context is Operational Enrichment, not required Evidence. Optional Local LLM Narrative summarizes the Machine Report and is not the source of truth.
 
 ## How It Decides
 
@@ -151,8 +174,16 @@ Override those defaults with:
 - `TRACEBULLET_CORAL_QUERY_ARGS`
 - `TRACEBULLET_CORAL_QUERY_RETRIES`
 - `TRACEBULLET_CORAL_RETRY_DELAY_MS`
+- `TRACEBULLET_ENABLE_LIVE_ENRICHMENTS`
+- `TRACEBULLET_DATADOG_ENRICHMENT_QUERY`
+- `TRACEBULLET_PAGERDUTY_ENRICHMENT_QUERY`
+- `TRACEBULLET_OLLAMA_URL`
+- `TRACEBULLET_OLLAMA_MODEL`
+- `TRACEBULLET_NARRATIVE_MODE`
 
 See [.env.example](.env.example) for the sandbox environment shape.
+
+Live Datadog/PagerDuty enrichment is opt-in. Set `TRACEBULLET_ENABLE_LIVE_ENRICHMENTS=true` and provide one or both enrichment query templates. Templates receive `{{SERVICE_TAG}}`, `{{SENTRY_ISSUE_ID}}`, `{{FIRST_SEEN_AT}}`, `{{PR_NUMBER}}`, and `{{MERGE_COMMIT}}` placeholders and must return normalized rows matching the Machine Report enrichment fields. Without templates, TraceBullet labels fallback context as Demo Enrichment Data.
 
 ## Current Live Sandbox
 
@@ -191,9 +222,9 @@ For the hackathon criteria mapping, see [docs/judging-map.md](docs/judging-map.m
 
 For local execution and token-handling boundaries, see [docs/privacy.md](docs/privacy.md).
 
-For the JSON stdin/stdout agent adapter, see [docs/agent-tool.md](docs/agent-tool.md).
+For the MCP server and JSON stdin/stdout agent adapter, see [docs/agent-tool.md](docs/agent-tool.md).
 
-For the static investigation interface, see [ui/README.md](ui/README.md).
+For the React investigation interface, see [ui/README.md](ui/README.md).
 
 ## Posting A Slack Marker
 

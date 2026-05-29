@@ -20,12 +20,16 @@ Those API calls are necessary to read live sandbox records. TraceBullet should s
 - Environment variables used by the local process.
 - JSON and human-readable reports unless the user exports or shares them.
 - Retry settings for transient Coral source failures.
+- Local LLM Narrative requests when Ollama is running on `localhost`.
+- Demo Enrichment Data when optional Datadog/PagerDuty live sources are not configured.
 
 ## Token Handling
 
 TraceBullet does not require tokens to be committed to the repository.
 
 Use environment variables or Coral's local configuration for credentials. The optional Slack marker helper reads `SLACK_BOT_TOKEN` from the current environment and should only be used with a sandbox Slack app.
+
+Optional Ollama settings use `TRACEBULLET_OLLAMA_URL` and `TRACEBULLET_OLLAMA_MODEL`. Keep `TRACEBULLET_OLLAMA_URL` pointed at a local Ollama server for the Local LLM Narrative path.
 
 ## Demo Safety Rules
 
@@ -34,6 +38,8 @@ Use environment variables or Coral's local configuration for credentials. The op
 - Do not paste tokens into docs, issues, screenshots, or recordings.
 - Rotate any token that is accidentally exposed.
 - Treat Slack Context as supporting evidence, not proof by itself.
+- Label Operational Enrichment mode honestly in screenshots and recordings.
+- Do not describe Demo Enrichment Data as live Datadog or PagerDuty API data.
 
 ## Honest Claim
 
