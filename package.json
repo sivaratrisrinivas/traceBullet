@@ -5,9 +5,19 @@
   "type": "module",
   "scripts": {
     "agent:tool": "node scripts/tracebullet-agent-tool.mjs",
+    "mcp:server": "node scripts/tracebullet-mcp-server.mjs",
+    "ui:dev": "vite --host 127.0.0.1 --port 4175 ui",
+    "ui:build": "vite build ui --outDir ../dist/ui --emptyOutDir",
+    "ui:preview": "vite preview --host 127.0.0.1 --port 4175 --outDir dist/ui",
     "test": "node --test"
   },
   "engines": {
     "node": ">=24"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "vite": "^8.0.14"
   }
 }
