@@ -20,7 +20,7 @@ Those API calls are necessary to read live sandbox records. TraceBullet should s
 - Environment variables used by the local process.
 - JSON and human-readable reports unless the user exports or shares them.
 - Retry settings for transient Coral source failures.
-- Local LLM Narrative requests when Ollama is running on `localhost`.
+- LLM Narrative requests. Ollama keeps requests on `localhost`; Gemini sends Machine Report facts to Google Gemini API when `TRACEBULLET_NARRATIVE_PROVIDER=gemini`.
 - TraceBullet App Server requests and responses on the local host.
 - Demo Enrichment Data when optional Datadog/PagerDuty live sources are not configured.
 
@@ -31,6 +31,8 @@ TraceBullet does not require tokens to be committed to the repository.
 Use environment variables or Coral's local configuration for credentials. The optional Slack marker helper reads `SLACK_BOT_TOKEN` from the current environment and should only be used with a sandbox Slack app.
 
 Optional Ollama settings use `TRACEBULLET_OLLAMA_URL` and `TRACEBULLET_OLLAMA_MODEL`. Keep `TRACEBULLET_OLLAMA_URL` pointed at a local Ollama server for the Local LLM Narrative path.
+
+Optional Gemini settings use `TRACEBULLET_NARRATIVE_PROVIDER=gemini`, `GEMINI_API_KEY` or `GOOGLE_API_KEY`, and `TRACEBULLET_GEMINI_MODEL`. Gemini receives only Machine Report facts and returns a Narrative Summary; it is not Evidence.
 
 ## Demo Safety Rules
 

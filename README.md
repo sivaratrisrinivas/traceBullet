@@ -12,7 +12,7 @@ Requirements:
 
 - Node.js 24 or newer
 - Coral configured if you want to query live sandbox data
-- Ollama with `qwen3:0.6b` if you want Local LLM Narrative output
+- Gemini API key or Ollama with `qwen3:0.6b` if you want LLM Narrative output
 
 Run the local sample data:
 
@@ -45,6 +45,28 @@ Run with optional Operational Enrichment and Narrative Summary:
 node src/cli.ts investigate SENTRY-TB-1001 --json --enrich --narrative
 ```
 
+Use Gemini for the Narrative Summary:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env`:
+
+```bash
+GEMINI_API_KEY=your_key_here
+TRACEBULLET_NARRATIVE_PROVIDER=gemini
+TRACEBULLET_GEMINI_MODEL=gemini-3.5-flash
+```
+
+Run the app:
+
+```bash
+npm run app
+```
+
+The app server loads `.env` on startup. Do not commit `.env`.
+
 Run the MCP Investigation Tool:
 
 ```bash
@@ -57,18 +79,17 @@ Run the JSON stdin/stdout adapter:
 echo '{"sentryIssueId":"SENTRY-TB-1001","source":"local"}' | npm run agent:tool
 ```
 
-Open the React UI:
+Run the full local app:
 
 ```bash
-npm run ui:dev
+npm run app
 ```
 
-Run the full local app after building the UI:
+Then open `http://127.0.0.1:4180`.
 
-```bash
-npm run ui:build
-npm run app:server
-```
+For UI-only Vite development without the local API, run `npm run ui:dev`.
+
+The full local app logs each pipeline step to the terminal as JSON lines: app request, source selection, Coral command and sandbox scope, Coral query strategy, ranking, enrichment, narrative, and completion.
 
 ## Demo In 60 Seconds
 
@@ -86,7 +107,7 @@ Expected result:
 - Slack Context: `Merged PR #11 for checkout test error investigation`
 - Coral query strategy: `Single Investigation Query`
 - Optional Operational Enrichment: `Live Coral Enrichment` or labeled `Demo Enrichment Data`
-- Optional Narrative Summary: `Local LLM Narrative` or `Deterministic Narrative`
+- Optional Narrative Summary: `Cloud LLM Narrative`, `Local LLM Narrative`, or `Deterministic Narrative`
 
 Run the same investigation through the agent-facing adapter:
 
@@ -103,8 +124,7 @@ npm run mcp:server
 Open the full local React app:
 
 ```bash
-npm run ui:build
-npm run app:server
+npm run app
 ```
 
 Then open:
@@ -117,7 +137,7 @@ TraceBullet's honest claim:
 
 > TraceBullet uses Coral to query live Sentry, GitHub, and Slack sandbox sources locally, filters Candidate PRs and Slack Context through SQL, then applies deterministic TypeScript ranking and report formatting.
 
-Optional Datadog/PagerDuty context is Operational Enrichment, not required Evidence. Optional Local LLM Narrative summarizes the Machine Report and is not the source of truth.
+Optional Datadog/PagerDuty context is Operational Enrichment, not required Evidence. Optional LLM Narrative summarizes the Machine Report and is not the source of truth.
 
 ## How It Decides
 
@@ -185,6 +205,11 @@ Override those defaults with:
 - `TRACEBULLET_ENABLE_LIVE_ENRICHMENTS`
 - `TRACEBULLET_DATADOG_ENRICHMENT_QUERY`
 - `TRACEBULLET_PAGERDUTY_ENRICHMENT_QUERY`
+- `TRACEBULLET_NARRATIVE_PROVIDER`
+- `TRACEBULLET_GEMINI_MODEL`
+- `TRACEBULLET_GEMINI_FALLBACK_MODEL`
+- `GEMINI_API_KEY`
+- `GOOGLE_API_KEY`
 - `TRACEBULLET_OLLAMA_URL`
 - `TRACEBULLET_OLLAMA_MODEL`
 - `TRACEBULLET_NARRATIVE_MODE`

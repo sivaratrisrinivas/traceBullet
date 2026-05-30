@@ -1,4 +1,4 @@
-import { runTraceBulletCommand } from "./cli.ts";
+import { buildTraceBulletCommandEnvironment, runTraceBulletCommand } from "./cli.ts";
 
 export type AppResponse = {
   status: number;
@@ -12,7 +12,8 @@ export function handleAppHealth(): AppResponse {
       ok: true,
       app: "tracebullet",
       investigationSourceOfTruth: "Investigation Command",
-      localLlmMode: process.env.TRACEBULLET_NARRATIVE_MODE ?? "ollama-with-deterministic-fallback"
+      narrativeProvider: process.env.TRACEBULLET_NARRATIVE_PROVIDER ?? "ollama",
+      narrativeMode: process.env.TRACEBULLET_NARRATIVE_MODE ?? "llm-with-deterministic-fallback"
     }
   };
 }
@@ -23,6 +24,7 @@ export function handleAppInvestigationRequest(
 ): AppResponse {
   const sentryIssueId = input.sentryIssueId;
   const source = input.source ?? "local";
+  const requestId = `tb-${Date.now().toString(36)}`;
 
   if (typeof sentryIssueId !== "string" || sentryIssueId.trim().length === 0) {
     return errorResponse(400, "Missing sentryIssueId.");
@@ -33,6 +35,14 @@ export function handleAppInvestigationRequest(
   }
 
   const args = ["investigate", sentryIssueId.trim(), "--source", source, "--json"];
+  const log = createPipelineLogger(requestId);
+
+  log("app.request.received", {
+    sentryIssueId: sentryIssueId.trim(),
+    source,
+    includeEnrichment: input.includeEnrichment !== false,
+    includeNarrative: input.includeNarrative !== false
+  });
 
   if (input.includeEnrichment !== false) {
     args.push("--enrich");
@@ -42,17 +52,41 @@ export function handleAppInvestigationRequest(
     args.push("--narrative");
   }
 
-  const result = runTraceBulletCommand(args, { env });
+  const result = runTraceBulletCommand(args, {
+    env: buildTraceBulletCommandEnvironment(source, env),
+    log
+  });
 
   if (result.exitCode !== 0) {
+    log("app.request.failed", {
+      status: 422,
+      error: result.stderr || "TraceBullet investigation failed."
+    });
+
     return errorResponse(422, result.stderr || "TraceBullet investigation failed.");
   }
+
+  log("app.request.complete", { status: 200 });
 
   return {
     status: 200,
     body: {
       report: JSON.parse(result.stdout)
     }
+  };
+}
+
+function createPipelineLogger(requestId: string) {
+  return (message: string, fields: Record<string, unknown> = {}) => {
+    console.error(
+      JSON.stringify({
+        at: new Date().toISOString(),
+        requestId,
+        component: "tracebullet-app",
+        message,
+        ...fields
+      })
+    );
   };
 }
 

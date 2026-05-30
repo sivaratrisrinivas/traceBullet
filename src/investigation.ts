@@ -70,7 +70,8 @@ export type OperationalEnrichment = {
 };
 
 export type NarrativeSummary = {
-  mode: "Local LLM Narrative" | "Deterministic Narrative" | "Unavailable";
+  mode: "Cloud LLM Narrative" | "Local LLM Narrative" | "Deterministic Narrative" | "Unavailable";
+  provider?: "gemini" | "ollama";
   model?: string;
   text: string;
   notes: string[];

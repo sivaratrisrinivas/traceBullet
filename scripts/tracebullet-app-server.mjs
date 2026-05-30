@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +9,8 @@ import {
 } from "../src/appServerCore.ts";
 
 const rootDir = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const dotenvResult = loadDotenv(resolve(rootDir, ".env"));
+
 const staticDir = resolve(rootDir, "dist/ui");
 const host = process.env.TRACEBULLET_APP_HOST ?? "127.0.0.1";
 const port = Number.parseInt(process.env.TRACEBULLET_APP_PORT ?? "4180", 10);
@@ -47,6 +49,21 @@ const server = createServer(async (request, response) => {
 
 server.listen(port, host, () => {
   console.error(`TraceBullet app server listening at http://${host}:${port}`);
+  console.error(
+    JSON.stringify({
+      at: new Date().toISOString(),
+      component: "tracebullet-app",
+      message: "app.env.loaded",
+      path: dotenvResult.path,
+      found: dotenvResult.found,
+      loadedKeys: dotenvResult.loadedKeys,
+      skippedExistingKeys: dotenvResult.skippedExistingKeys,
+      hasGeminiApiKey: Boolean(process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY),
+      narrativeProvider: process.env.TRACEBULLET_NARRATIVE_PROVIDER ?? "ollama",
+      narrativeMode: process.env.TRACEBULLET_NARRATIVE_MODE ?? "llm-with-deterministic-fallback",
+      geminiModel: process.env.TRACEBULLET_GEMINI_MODEL
+    })
+  );
 });
 
 async function readJsonBody(request) {
@@ -115,4 +132,64 @@ function readContentType(filePath) {
     ".json": "application/json; charset=utf-8",
     ".svg": "image/svg+xml"
   }[extension] ?? "application/octet-stream";
+}
+
+function loadDotenv(filePath) {
+  const result = {
+    path: filePath,
+    found: existsSync(filePath),
+    loadedKeys: [],
+    skippedExistingKeys: []
+  };
+
+  if (!existsSync(filePath)) {
+    return result;
+  }
+
+  const content = readFileSync(filePath, "utf8");
+
+  for (const line of content.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf("=");
+
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const key = trimmed
+      .slice(0, separatorIndex)
+      .trim()
+      .replace(/^export\s+/u, "");
+    const rawValue = trimmed.slice(separatorIndex + 1).trim();
+
+    if (!key) {
+      continue;
+    }
+
+    if (process.env[key] !== undefined && process.env[key] !== "") {
+      result.skippedExistingKeys.push(key);
+      continue;
+    }
+
+    process.env[key] = unquoteDotenvValue(rawValue);
+    result.loadedKeys.push(key);
+  }
+
+  return result;
+}
+
+function unquoteDotenvValue(value) {
+  if (
+    (value.startsWith("\"") && value.endsWith("\"")) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+
+  return value;
 }

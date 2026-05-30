@@ -40,7 +40,7 @@ Tool arguments:
 
 `includeEnrichment` attaches optional Datadog/PagerDuty Operational Enrichment. If live enrichment is not enabled or fails, the report labels fallback data as Demo Enrichment Data.
 
-`includeNarrative` calls the local Ollama model when available and falls back to a Deterministic Narrative.
+`includeNarrative` calls the configured narrative provider. Gemini is used when `TRACEBULLET_NARRATIVE_PROVIDER=gemini` and `GEMINI_API_KEY` or `GOOGLE_API_KEY` is set; otherwise the default local Ollama path is used. Both paths fall back to a Deterministic Narrative.
 
 ## JSON Stdin/Stdout Adapter
 

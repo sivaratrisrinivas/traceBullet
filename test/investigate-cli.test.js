@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isRetryableCoralFailure } from "../src/coralSandboxData.ts";
-import { runTraceBulletCommand } from "../src/cli.ts";
+import { buildTraceBulletCommandEnvironment, runTraceBulletCommand } from "../src/cli.ts";
 import { handleMcpMessage } from "../src/mcpServerCore.ts";
 import { runAgentToolRequest } from "../src/agentToolCore.ts";
 import {
@@ -286,6 +286,31 @@ test("investigation command can attach a deterministic narrative fallback", asyn
   assert.doesNotMatch(machineReport.narrative.text, /root cause/i);
 });
 
+test("Gemini narrative provider falls back clearly when API key is missing", async () => {
+  const result = runTraceBulletCommand(
+    [
+      "investigate",
+      "SENTRY-TB-1001",
+      "--json",
+      "--narrative"
+    ],
+    {
+      env: {
+        TRACEBULLET_NARRATIVE_PROVIDER: "gemini"
+      }
+    }
+  );
+
+  assert.equal(result.exitCode, 0);
+
+  const machineReport = JSON.parse(result.stdout);
+
+  assert.equal(machineReport.narrative.mode, "Deterministic Narrative");
+  assert.equal(machineReport.narrative.provider, "gemini");
+  assert.equal(machineReport.narrative.model, "gemini-3.5-flash");
+  assert.match(machineReport.narrative.notes.join(" "), /GEMINI_API_KEY/);
+});
+
 test("MCP server exposes the TraceBullet investigation tool over stdio", async () => {
   const responses = [
     handleMcpMessage({
@@ -382,6 +407,7 @@ test("app API core runs investigation with narrative enabled by default", async 
   );
 
   assert.equal(health.status, 200);
+  assert.equal(health.body.narrativeProvider, "ollama");
   assert.equal(response.status, 200);
   assert.equal(response.body.report.sentryIssue.id, "SENTRY-TB-1001");
   assert.equal(response.body.report.narrative.mode, "Deterministic Narrative");
@@ -527,7 +553,7 @@ test("investigation command normalizes lowercase Live Coral Query row aliases", 
   assert.equal(machineReport.queryRepresentation.source, "Live Coral Query");
 });
 
-test("investigation command fails clearly when Coral source is not configured", async () => {
+test("investigation command fails clearly when Coral command is explicitly disabled", async () => {
   const result = runTraceBulletCommand(
     [
       "investigate",
@@ -536,7 +562,9 @@ test("investigation command fails clearly when Coral source is not configured", 
       "coral"
     ],
     {
-      env: {}
+      env: {
+        TRACEBULLET_CORAL_QUERY_COMMAND: ""
+      }
     }
   );
 
@@ -544,6 +572,19 @@ test("investigation command fails clearly when Coral source is not configured", 
   assert.equal(result.stdout, "");
   assert.match(result.stderr, /TRACEBULLET_CORAL_QUERY_COMMAND/);
   assert.match(result.stderr, /sandbox GitHub, Sentry, and Slack sources/);
+});
+
+test("app API Coral source uses default sandbox command environment", async () => {
+  const env = buildTraceBulletCommandEnvironment("coral", {
+    TRACEBULLET_NARRATIVE_MODE: "deterministic"
+  });
+
+  assert.equal(env.TRACEBULLET_NARRATIVE_MODE, "deterministic");
+  assert.equal(env.TRACEBULLET_CORAL_QUERY_COMMAND, process.execPath);
+  assert.match(env.TRACEBULLET_CORAL_QUERY_ARGS, /scripts\/run-coral-sql\.mjs$/);
+  assert.equal(env.TRACEBULLET_GITHUB_OWNER, "sivaratrisrinivas");
+  assert.equal(env.TRACEBULLET_GITHUB_REPO, "traceBullet");
+  assert.equal(env.TRACEBULLET_SLACK_CHANNEL_ID, "C0B689JN3L6");
 });
 
 test("direct Coral CLI usage defaults to the sandbox runner and source scope", async () => {
@@ -598,7 +639,10 @@ test("investigation command fails clearly when Coral sandbox scope is missing", 
     ],
     {
       env: {
-        TRACEBULLET_CORAL_QUERY_COMMAND: "scripts/run-coral-sql.mjs"
+        TRACEBULLET_CORAL_QUERY_COMMAND: "scripts/run-coral-sql.mjs",
+        TRACEBULLET_GITHUB_OWNER: "",
+        TRACEBULLET_GITHUB_REPO: "",
+        TRACEBULLET_SLACK_CHANNEL_ID: ""
       }
     }
   );

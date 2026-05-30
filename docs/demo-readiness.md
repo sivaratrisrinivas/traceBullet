@@ -21,7 +21,7 @@ Expected result:
 - Slack Context: `Merged PR #11 for checkout test error investigation`
 - Runtime source: `Coral Sandbox Sources`
 - Operational Enrichment mode: `Live Coral Enrichment` or `Demo Enrichment Data`
-- Narrative mode: `Local LLM Narrative` or `Deterministic Narrative`
+- Narrative mode: `Cloud LLM Narrative`, `Local LLM Narrative`, or `Deterministic Narrative`
 
 ## What Is Live
 
@@ -37,6 +37,7 @@ Expected result:
 - Runtime duration is measured for the current execution.
 - Retryable upstream source timeouts are retried before fallback or failure.
 - Optional Datadog/PagerDuty Operational Enrichment can query Coral when live enrichment query templates are configured.
+- Optional Cloud LLM Narrative can use Gemini when configured with `TRACEBULLET_NARRATIVE_PROVIDER=gemini` and `GEMINI_API_KEY`.
 - Optional Local LLM Narrative can use Ollama with `qwen3:0.6b` when configured.
 
 ## What Is Synthetic
@@ -45,7 +46,7 @@ Expected result:
 - The GitHub pull request is in the sandbox repository.
 - The Slack message is in a sandbox Slack channel.
 - Demo Enrichment Data is synthetic when optional Datadog/PagerDuty live sources are not configured.
-- Deterministic Narrative is template-generated when local Ollama is not running.
+- Deterministic Narrative is template-generated when the configured LLM provider is disabled or unavailable.
 - No private company incident data is used.
 
 ## How Coral Is Used

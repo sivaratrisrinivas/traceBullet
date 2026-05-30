@@ -255,6 +255,7 @@ LIMIT 200;
 export type CoralQueryEnvironment = NodeJS.ProcessEnv;
 export type CoralQueryRunner = (query: string, env: CoralQueryEnvironment) => string;
 export type CoralQueryStrategy = "Single Investigation Query" | "Staged Query Fallback";
+export type PipelineLogger = (message: string, fields?: Record<string, unknown>) => void;
 export type CoralSandboxData = LocalPrototypeData & {
   coralQueryStrategy: CoralQueryStrategy;
   coralQueryFallbackReason?: string;
@@ -263,13 +264,34 @@ export type CoralSandboxData = LocalPrototypeData & {
 export function loadCoralSandboxData(
   sentryIssueId: string,
   env: CoralQueryEnvironment,
-  runCoralQuery: CoralQueryRunner = runConfiguredCoralQuery
+  runCoralQuery: CoralQueryRunner = runConfiguredCoralQuery,
+  log?: PipelineLogger
 ): CoralSandboxData {
   try {
-    return loadSingleQueryCoralSandboxData(sentryIssueId, env, runCoralQuery);
+    log?.("coral.single_query.start", {
+      sentryIssueId,
+      githubOwner: env.TRACEBULLET_GITHUB_OWNER,
+      githubRepo: env.TRACEBULLET_GITHUB_REPO,
+      slackChannelId: env.TRACEBULLET_SLACK_CHANNEL_ID
+    });
+
+    const data = loadSingleQueryCoralSandboxData(sentryIssueId, env, runCoralQuery);
+
+    log?.("coral.single_query.complete", readDataCounts(data));
+
+    return data;
   } catch (error) {
+    log?.("coral.single_query.failed", {
+      reason: readErrorMessage(error),
+      fallback: "Staged Query Fallback"
+    });
+
+    const stagedData = loadStagedCoralSandboxData(sentryIssueId, env, runCoralQuery, log);
+
+    log?.("coral.staged_query.complete", readDataCounts(stagedData));
+
     return {
-      ...loadStagedCoralSandboxData(sentryIssueId, env, runCoralQuery),
+      ...stagedData,
       coralQueryFallbackReason: readErrorMessage(error)
     };
   }
@@ -299,8 +321,11 @@ function loadSingleQueryCoralSandboxData(
 function loadStagedCoralSandboxData(
   sentryIssueId: string,
   env: CoralQueryEnvironment,
-  runCoralQuery: CoralQueryRunner
+  runCoralQuery: CoralQueryRunner,
+  log?: PipelineLogger
 ): CoralSandboxData {
+  log?.("coral.staged_query.sentry.start", { sentryIssueId });
+
   const sentryOutput = runCoralQuery(
     buildLiveCoralSentryIssueQuery(sentryIssueId, env),
     env
@@ -316,6 +341,10 @@ function loadStagedCoralSandboxData(
 
   const sentryIssues = normalizeCoralRows(JSON.parse(sentryOutput)).sentryIssues;
 
+  log?.("coral.staged_query.sentry.complete", {
+    sentryIssueCount: sentryIssues.length
+  });
+
   if (sentryIssues.length === 0) {
     return {
       sentryIssues: [],
@@ -326,18 +355,45 @@ function loadStagedCoralSandboxData(
   }
 
   const targetSentryIssue = sentryIssues[0];
+
+  log?.("coral.staged_query.pull_requests.start", {
+    serviceTag: targetSentryIssue.serviceTag,
+    firstSeenAt: targetSentryIssue.firstSeenAt
+  });
+
   const pullRequests = normalizeCoralRows(
     JSON.parse(runCoralQuery(buildLiveCoralPullRequestsQuery(targetSentryIssue, env), env))
   ).pullRequests;
+
+  log?.("coral.staged_query.pull_requests.complete", {
+    pullRequestCount: pullRequests.length
+  });
+
+  log?.("coral.staged_query.slack.start", {
+    slackChannelId: env.TRACEBULLET_SLACK_CHANNEL_ID
+  });
+
   const slackMessages = normalizeCoralRows(
     JSON.parse(runCoralQuery(buildLiveCoralSlackMessagesQuery(targetSentryIssue, env), env))
   ).slackMessages;
+
+  log?.("coral.staged_query.slack.complete", {
+    slackMessageCount: slackMessages.length
+  });
 
   return {
     sentryIssues,
     pullRequests,
     slackMessages,
     coralQueryStrategy: "Staged Query Fallback"
+  };
+}
+
+function readDataCounts(data: LocalPrototypeData): Record<string, unknown> {
+  return {
+    sentryIssueCount: data.sentryIssues.length,
+    pullRequestCount: data.pullRequests.length,
+    slackMessageCount: data.slackMessages.length
   };
 }
 

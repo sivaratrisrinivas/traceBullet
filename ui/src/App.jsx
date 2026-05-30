@@ -1,154 +1,16 @@
-import { useMemo, useState } from "react";
-
-const sampleReport = {
-  sentryIssue: {
-    id: "CHECKOUT-4",
-    title: "TraceBullet checkout sandbox error",
-    serviceTag: "checkout",
-    firstSeenAt: "2026-05-27T20:52:04Z"
-  },
-  suspectedCausingPr: {
-    number: 11,
-    title: "Add second checkout Coral sandbox marker",
-    author: "sivaratrisrinivas",
-    serviceTag: "checkout",
-    mergedAt: "2026-05-27T20:48:42Z",
-    mergeCommit: "ea7c0847e29ff32cd5d6db6af1f9be36fcc704bf"
-  },
-  otherCandidatePrs: [],
-  missingProof: {
-    serviceMatch: false,
-    timeMatch: false
-  },
-  evidence: {
-    serviceMatch: "checkout",
-    minutesBeforeFirstSeen: 3.3666666666666667,
-    slackContext: {
-      channel: "#all-coral-tracebullet",
-      author: "coral",
-      sentAt: "2026-05-27T20:50:57.474059Z",
-      text: "Merged PR #11 for checkout test error investigation"
-    }
-  },
-  queryRepresentation: {
-    source: "Live Coral Query",
-    description:
-      "WITH target_sentry_issue AS (...) SELECT sentry.issues, github.pulls, and slack.messages rows narrowed by Service Tag and the 30-minute Investigation Window."
-  },
-  runtime: {
-    source: "Coral Sandbox Sources",
-    coralQueryStrategy: "Single Investigation Query",
-    investigationWindowMinutes: 30,
-    durationMs: 4012
-  },
-  operationalEnrichment: {
-    mode: "Demo Enrichment Data",
-    datadog: {
-      service: "checkout",
-      metric: "tracebullet.synthetic.error_rate",
-      observedAt: "2026-05-27T20:51:04.000Z",
-      value: 4.8,
-      unit: "x baseline",
-      summary: "checkout error rate rose near the Sentry first-seen timestamp."
-    },
-    pagerDuty: {
-      incidentId: "PD-CHECKOUT-SANDBOX",
-      title: "checkout fatal error spike",
-      status: "triggered",
-      urgency: "high",
-      triggeredAt: "2026-05-27T20:52:04Z",
-      summary: "Sandbox incident overlaps the TraceBullet Investigation Window."
-    },
-    notes: ["Live Coral Enrichment is disabled in the embedded reference trace."]
-  },
-  narrative: {
-    mode: "Deterministic Narrative",
-    text:
-      "TraceBullet identifies PR #11 as the Suspected Causing PR for CHECKOUT-4. The PR matches Service Tag checkout and was merged 3.37 minutes before first seen. Slack Context links the PR to the pre-incident marker.",
-    notes: ["The Machine Report remains the source of truth."]
-  }
-};
-
-const screens = ["Investigate", "Trace", "Evidence", "Signals", "SQL", "Narrative", "Import"];
+import { useState } from "react";
 
 export function App() {
-  const [report, setReport] = useState(sampleReport);
-  const [screen, setScreen] = useState("Investigate");
-  const [draft, setDraft] = useState("");
-  const [error, setError] = useState("");
+  const [report, setReport] = useState(null);
   const [apiError, setApiError] = useState("");
   const [isInvestigating, setIsInvestigating] = useState(false);
   const [form, setForm] = useState({
     sentryIssueId: "SENTRY-TB-1001",
-    source: "local",
-    includeNarrative: true,
-    includeEnrichment: true
+    source: "local"
   });
 
-  const revertCommand = report.suspectedCausingPr?.mergeCommit
-    ? `git revert ${report.suspectedCausingPr.mergeCommit}`
-    : "unavailable";
-  const status = report.suspectedCausingPr ? "Suspect locked" : "No suspect";
-
-  function importDraft() {
-    try {
-      const next = parseMachineReport(draft);
-
-      if (!next.sentryIssue || !next.runtime || !next.queryRepresentation) {
-        throw new Error("Missing Machine Report fields.");
-      }
-
-      setReport(next);
-      setError("");
-      setScreen("Trace");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Invalid JSON.");
-    }
-  }
-
-  const activePanel = useMemo(() => {
-    switch (screen) {
-      case "Evidence":
-        return <Evidence report={report} revertCommand={revertCommand} />;
-      case "Signals":
-        return <Signals report={report} />;
-      case "SQL":
-        return <SqlView report={report} />;
-      case "Narrative":
-        return <Narrative report={report} />;
-      case "Investigate":
-        return (
-          <InvestigatePanel
-            apiError={apiError}
-            form={form}
-            isInvestigating={isInvestigating}
-            report={report}
-            setForm={setForm}
-            investigate={investigate}
-          />
-        );
-      case "Import":
-        return (
-          <ImportPanel
-            draft={draft}
-            error={error}
-            setDraft={setDraft}
-            importDraft={importDraft}
-            reset={() => {
-              setReport(sampleReport);
-              setDraft("");
-              setError("");
-              setApiError("");
-              setScreen("Trace");
-            }}
-          />
-        );
-      default:
-        return <Trace report={report} status={status} revertCommand={revertCommand} />;
-    }
-  }, [apiError, draft, error, form, isInvestigating, report, revertCommand, screen, status]);
-
-  async function investigate() {
+  async function investigate(event) {
+    event.preventDefault();
     setIsInvestigating(true);
     setApiError("");
 
@@ -158,7 +20,11 @@ export function App() {
         headers: {
           "content-type": "application/json"
         },
-        body: JSON.stringify(form)
+        body: JSON.stringify({
+          ...form,
+          includeNarrative: true,
+          includeEnrichment: true
+        })
       });
       const payload = await response.json();
 
@@ -167,7 +33,6 @@ export function App() {
       }
 
       setReport(payload.report);
-      setScreen("Trace");
     } catch (caught) {
       setApiError(caught instanceof Error ? caught.message : "TraceBullet investigation failed.");
     } finally {
@@ -175,65 +40,46 @@ export function App() {
     }
   }
 
+  function resetInvestigation() {
+    setReport(null);
+    setApiError("");
+  }
+
   return (
-    <main className="app">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">TRACEBULLET</p>
-          <h1>Incident trace instrument</h1>
-        </div>
-        <div className="status-light" aria-label={status}>
-          <span />
-          {status}
-        </div>
-      </header>
-
-      <section className="workspace">
-        <nav className="rail" aria-label="Trace sections">
-          {screens.map((item) => (
-            <button
-              key={item}
-              className={screen === item ? "active" : ""}
-              type="button"
-              onClick={() => setScreen(item)}
-            >
-              {item}
-            </button>
-          ))}
-        </nav>
-
-        <section className="stage" aria-live="polite">
-          {activePanel}
-        </section>
-
-        <aside className="telemetry" aria-label="Runtime telemetry">
-          <Metric label="SOURCE" value={report.runtime.source} />
-          <Metric label="STRATEGY" value={report.runtime.coralQueryStrategy ?? "Local"} />
-          <Metric label="WINDOW" value={`${report.runtime.investigationWindowMinutes} min`} />
-          <Metric label="DURATION" value={`${report.runtime.durationMs} ms`} />
-          <Metric label="NARRATIVE" value={report.narrative?.mode ?? "Off"} />
-          <Metric label="ENRICHMENT" value={report.operationalEnrichment?.mode ?? "Off"} />
-        </aside>
-      </section>
+    <main className="app-shell">
+      {!report ? (
+        <InvestigateScreen
+          apiError={apiError}
+          form={form}
+          isInvestigating={isInvestigating}
+          setForm={setForm}
+          investigate={investigate}
+        />
+      ) : (
+        <DecisionBrief report={report} resetInvestigation={resetInvestigation} />
+      )}
     </main>
   );
 }
 
-function InvestigatePanel({
-  apiError,
-  form,
-  isInvestigating,
-  report,
-  setForm,
-  investigate
-}) {
+function InvestigateScreen({ apiError, form, isInvestigating, setForm, investigate }) {
   return (
-    <div className="panel investigate-panel">
-      <PanelTitle kicker="INVESTIGATE" title="Run TraceBullet" />
-      <div className="investigation-form">
-        <label>
+    <section className="screen investigate-screen" aria-labelledby="investigate-title">
+      <div className="brand-mark">
+        <span>TraceBullet</span>
+      </div>
+
+      <div className="investigate-copy">
+        <p className="eyebrow">Investigation Command</p>
+        <h1 id="investigate-title">Find the Suspected Causing PR.</h1>
+      </div>
+
+      <form className="command-form" onSubmit={investigate}>
+        <label className="field">
           <span>Sentry Issue ID</span>
           <input
+            autoComplete="off"
+            autoFocus
             value={form.sentryIssueId}
             onChange={(event) =>
               setForm((current) => ({
@@ -243,7 +89,8 @@ function InvestigatePanel({
             }
           />
         </label>
-        <label>
+
+        <label className="field">
           <span>Source</span>
           <select
             value={form.source}
@@ -258,251 +105,133 @@ function InvestigatePanel({
             <option value="coral">Coral Sandbox Sources</option>
           </select>
         </label>
-        <label className="check-row">
-          <input
-            checked={form.includeNarrative}
-            type="checkbox"
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                includeNarrative: event.target.checked
-              }))
-            }
-          />
-          <span>Local LLM Narrative</span>
-        </label>
-        <label className="check-row">
-          <input
-            checked={form.includeEnrichment}
-            type="checkbox"
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                includeEnrichment: event.target.checked
-              }))
-            }
-          />
-          <span>Operational Enrichment</span>
-        </label>
-      </div>
-      {apiError ? <p className="error">{apiError}</p> : null}
-      <div className="button-row">
-        <button type="button" disabled={isInvestigating} onClick={investigate}>
-          {isInvestigating ? "Running" : "Investigate"}
+
+        {apiError ? <p className="error">{apiError}</p> : null}
+
+        <button className="primary-action" type="submit" disabled={isInvestigating}>
+          {isInvestigating ? "Running investigation" : "Run investigation"}
         </button>
-      </div>
-      <div className="run-summary">
-        <Fact label="Current Issue" value={report.sentryIssue.id} />
-        <Fact label="Narrative" value={report.narrative?.mode ?? "Off"} />
-        <Fact label="Enrichment" value={report.operationalEnrichment?.mode ?? "Off"} />
-        <Fact label="Source" value={report.runtime.source} />
-      </div>
-    </div>
+      </form>
+    </section>
   );
 }
 
-function parseMachineReport(input) {
-  const trimmed = input.trim();
+function DecisionBrief({ report, resetInvestigation }) {
+  const [stepIndex, setStepIndex] = useState(0);
+  const steps = getInvestigationSteps(report);
+  const step = steps[stepIndex];
+  const isLastStep = stepIndex === steps.length - 1;
 
-  if (!trimmed) {
-    throw new Error("Paste a Machine Report JSON payload.");
-  }
-
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    const firstBrace = trimmed.indexOf("{");
-    const lastBrace = trimmed.lastIndexOf("}");
-
-    if (firstBrace < 0 || lastBrace <= firstBrace) {
-      throw new Error("No JSON object found in pasted input.");
+  function advance() {
+    if (isLastStep) {
+      resetInvestigation();
+      return;
     }
 
-    return JSON.parse(trimmed.slice(firstBrace, lastBrace + 1));
+    setStepIndex((current) => current + 1);
   }
-}
-
-function Trace({ report, status, revertCommand }) {
-  return (
-    <div className="panel trace-panel">
-      <div className="panel-head">
-        <p className="eyebrow">TRACE</p>
-        <h2>{report.sentryIssue.id}</h2>
-        <p>{report.sentryIssue.title}</p>
-      </div>
-      <div className="trace-grid">
-        <TraceNode label="SENTRY" title={report.sentryIssue.serviceTag} detail={report.sentryIssue.firstSeenAt} />
-        <TraceNode
-          label="GITHUB"
-          title={report.suspectedCausingPr ? `PR #${report.suspectedCausingPr.number}` : "No PR"}
-          detail={report.suspectedCausingPr?.title ?? "No Suspected Causing PR Found"}
-        />
-        <TraceNode
-          label="SLACK"
-          title={report.evidence.slackContext?.channel ?? "missing"}
-          detail={report.evidence.slackContext?.text ?? "Slack Context missing"}
-        />
-      </div>
-      <div className="command-strip">
-        <span>{status}</span>
-        <code>{revertCommand}</code>
-      </div>
-    </div>
-  );
-}
-
-function Evidence({ report, revertCommand }) {
-  const pr = report.suspectedCausingPr;
 
   return (
-    <div className="panel">
-      <PanelTitle kicker="EVIDENCE" title={pr ? `PR #${pr.number}` : "No Suspected Causing PR Found"} />
-      <div className="facts">
-        <Fact label="Service Match" value={report.evidence.serviceMatch ?? "missing"} />
-        <Fact
-          label="Time Match"
-          value={
-            report.evidence.minutesBeforeFirstSeen !== undefined
-              ? `${round(report.evidence.minutesBeforeFirstSeen)} minutes before first seen`
-              : "missing"
-          }
-        />
-        <Fact label="Author" value={pr?.author ?? "missing"} />
-        <Fact label="Merge Commit" value={pr?.mergeCommit ?? "missing"} mono />
+    <section className="screen focus-screen" aria-labelledby="focus-title" aria-live="polite">
+      <div className="brand-mark">
+        <span>TraceBullet</span>
       </div>
-      <div className="wide-line">
-        <span>Suggested Revert Command</span>
-        <code>{revertCommand}</code>
-      </div>
-    </div>
-  );
-}
 
-function Signals({ report }) {
-  const enrichment = report.operationalEnrichment;
-
-  return (
-    <div className="panel">
-      <PanelTitle kicker="SIGNALS" title={enrichment?.mode ?? "Operational Enrichment off"} />
-      <div className="signal-grid">
-        <SignalCard title="Datadog" signal={enrichment?.datadog} />
-        <SignalCard title="PagerDuty" signal={enrichment?.pagerDuty} />
-      </div>
-      <ul className="notes">
-        {(enrichment?.notes ?? ["No Operational Enrichment attached."]).map((note) => (
-          <li key={note}>{note}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function SqlView({ report }) {
-  return (
-    <div className="panel">
-      <PanelTitle kicker="SQL" title={report.queryRepresentation.source} />
-      <pre className="sql-box">{report.queryRepresentation.description}</pre>
-      {report.operationalEnrichment?.queryRepresentation ? (
-        <div className="split-code">
-          <pre>{report.operationalEnrichment.queryRepresentation.datadog}</pre>
-          <pre>{report.operationalEnrichment.queryRepresentation.pagerDuty}</pre>
+      <div className="focus-meter" aria-label={`Investigation step ${stepIndex + 1} of ${steps.length}`}>
+        <span>{String(stepIndex + 1).padStart(2, "0")}</span>
+        <div>
+          <i style={{ width: `${((stepIndex + 1) / steps.length) * 100}%` }} />
         </div>
-      ) : null}
-    </div>
-  );
-}
-
-function Narrative({ report }) {
-  return (
-    <div className="panel narrative">
-      <PanelTitle kicker="NARRATIVE" title={report.narrative?.mode ?? "Narrative off"} />
-      <p>{report.narrative?.text ?? "Run with --narrative to attach a Narrative Summary."}</p>
-      <ul className="notes">
-        {(report.narrative?.notes ?? []).map((note) => (
-          <li key={note}>{note}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function ImportPanel({ draft, error, setDraft, importDraft, reset }) {
-  return (
-    <div className="panel import-panel">
-      <PanelTitle kicker="IMPORT" title="Machine Report" />
-      <textarea
-        aria-label="Machine Report JSON"
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        placeholder='{"sentryIssue":...}'
-      />
-      {error ? <p className="error">{error}</p> : null}
-      <div className="button-row">
-        <button type="button" onClick={importDraft}>
-          Load
-        </button>
-        <button type="button" className="secondary" onClick={reset}>
-          Reset
-        </button>
+        <span>{String(steps.length).padStart(2, "0")}</span>
       </div>
-    </div>
+
+      <article className="focus-card">
+        <p className="eyebrow">{step.kicker}</p>
+        <h1 id="focus-title">{step.title}</h1>
+        <p className="focus-detail">{step.detail}</p>
+        {step.code ? <code>{step.code}</code> : null}
+      </article>
+
+      <button className="primary-action focus-action" type="button" onClick={advance}>
+        {isLastStep ? "Start another investigation" : "Continue"}
+      </button>
+    </section>
   );
 }
 
-function SignalCard({ title, signal }) {
-  return (
-    <article className="signal-card">
-      <p className="eyebrow">{title}</p>
-      <h3>{signal?.summary ?? "unavailable"}</h3>
-      {signal ? (
-        <dl>
-          {Object.entries(signal).map(([key, value]) => (
-            <div key={key}>
-              <dt>{key}</dt>
-              <dd>{String(value)}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-    </article>
-  );
+function getInvestigationSteps(report) {
+  const pr = report.suspectedCausingPr;
+  const revertCommand = pr?.mergeCommit ? `git revert ${pr.mergeCommit}` : "unavailable";
+  const minutesBeforeFirstSeen =
+    report.evidence.minutesBeforeFirstSeen !== undefined
+      ? `${round(report.evidence.minutesBeforeFirstSeen)} minutes before first seen`
+      : "missing";
+  const verdict = pr ? `PR #${pr.number}` : "No Suspected Causing PR";
+  const confidence = getEvidenceCount(report);
+
+  return [
+    {
+      kicker: report.sentryIssue.id,
+      title: verdict,
+      detail: pr
+        ? "TraceBullet found one PR that best matches the Machine Report evidence."
+        : "TraceBullet did not find a PR with enough evidence inside the Investigation Window."
+    },
+    {
+      kicker: "Sentry",
+      title: report.sentryIssue.title,
+      detail: `Service Tag ${report.sentryIssue.serviceTag}; first seen ${report.sentryIssue.firstSeenAt}.`
+    },
+    {
+      kicker: "Service Match",
+      title: report.evidence.serviceMatch ?? "missing",
+      detail: "The candidate PR and Sentry issue must speak the same service language."
+    },
+    {
+      kicker: "Time Match",
+      title: minutesBeforeFirstSeen,
+      detail: "The merge sits inside the 30-minute Investigation Window before first seen."
+    },
+    {
+      kicker: "Slack Context",
+      title: report.evidence.slackContext?.channel ?? "missing",
+      detail: report.evidence.slackContext?.text ?? "No nearby Slack Context was attached."
+    },
+    {
+      kicker: "Suspected Causing PR",
+      title: pr?.title ?? "No candidate matched the investigation window.",
+      detail: pr ? `Merged by ${pr.author} at ${pr.mergedAt}.` : "No PR details are available."
+    },
+    {
+      kicker: report.operationalEnrichment?.mode ?? "Operational Enrichment off",
+      title: report.operationalEnrichment?.datadog?.summary ?? "No operational signal attached",
+      detail: report.operationalEnrichment?.pagerDuty?.summary ?? "PagerDuty context is unavailable."
+    },
+    {
+      kicker: "Evidence Count",
+      title: `${confidence}/3 matched`,
+      detail: "Service Match, Time Match, and Slack Context are the focused evidence checks."
+    },
+    {
+      kicker: "Narrative Summary",
+      title: report.narrative?.mode ?? "Narrative unavailable",
+      detail: report.narrative?.text ?? "Narrative Summary was not attached."
+    },
+    {
+      kicker: "Suggested Revert Command",
+      title: "Ready when the operator decides.",
+      detail: "This command is derived from the Machine Report; it is not executed by TraceBullet.",
+      code: revertCommand
+    }
+  ];
 }
 
-function TraceNode({ label, title, detail }) {
-  return (
-    <article className="trace-node">
-      <p>{label}</p>
-      <h3>{title}</h3>
-      <span>{detail}</span>
-    </article>
-  );
-}
-
-function PanelTitle({ kicker, title }) {
-  return (
-    <div className="panel-title">
-      <p className="eyebrow">{kicker}</p>
-      <h2>{title}</h2>
-    </div>
-  );
-}
-
-function Metric({ label, value }) {
-  return (
-    <div className="metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function Fact({ label, value, mono = false }) {
-  return (
-    <div className="fact">
-      <span>{label}</span>
-      <strong className={mono ? "mono" : ""}>{value}</strong>
-    </div>
-  );
+function getEvidenceCount(report) {
+  return [
+    report.evidence.serviceMatch,
+    report.evidence.minutesBeforeFirstSeen !== undefined,
+    report.evidence.slackContext
+  ].filter(Boolean).length;
 }
 
 function round(value) {

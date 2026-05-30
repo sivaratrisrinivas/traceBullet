@@ -43,7 +43,7 @@ const tools = [
         },
         includeNarrative: {
           type: "boolean",
-          description: "Attach a Local LLM Narrative, falling back to deterministic text."
+          description: "Attach a configured LLM Narrative, falling back to deterministic text."
         },
         outputFormat: {
           type: "string",

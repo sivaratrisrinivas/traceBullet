@@ -100,8 +100,12 @@ _Avoid_: Source of truth, primary evidence
 A Narrative Summary produced by a locally running model from the Machine Report only.
 _Avoid_: Cloud inference, new evidence, root-cause reasoning
 
+**Cloud LLM Narrative**:
+A Narrative Summary produced by a configured cloud model from the Machine Report only.
+_Avoid_: Evidence, matching logic, root-cause reasoning
+
 **Deterministic Narrative**:
-A template-generated Narrative Summary used when the local model is disabled or unavailable.
+A template-generated Narrative Summary used when the configured model is disabled or unavailable.
 _Avoid_: Fake model output, degraded proof
 
 **Operational Enrichment**:
@@ -163,7 +167,8 @@ _Avoid_: Product hardening, new feature work, production readiness
 - A **Machine Report** contains the same facts as the **Deterministic Report**.
 - A **Narrative Summary** can be added later, but it must only restate the **Deterministic Report**.
 - A **Local LLM Narrative** must only summarize the **Machine Report**.
-- A **Deterministic Narrative** preserves the **Narrative Summary** contract when the local model is unavailable.
+- A **Cloud LLM Narrative** must only summarize the **Machine Report**.
+- A **Deterministic Narrative** preserves the **Narrative Summary** contract when the configured model is unavailable.
 - **Operational Enrichment** can add Datadog or PagerDuty context, but it does not decide the **Suspected Causing PR**.
 - **Live Coral Enrichment** must be labeled separately from **Demo Enrichment Data**.
 - An **MCP Investigation Tool** wraps the **Investigation Command** and must not become a second source of truth.
@@ -190,7 +195,7 @@ _Avoid_: Product hardening, new feature work, production readiness
 - Real integrations should not touch private work data. Resolved: configure GitHub, Sentry, and Slack with **Sandbox Sources** only.
 - The initial product surface was unclear. Resolved: build the **Investigation Command** before a web dashboard.
 - The role of an LLM was unclear. Resolved: the MVP produces a **Deterministic Report** first; any **Narrative Summary** is optional formatting.
-- Optional LLM output could overclaim. Resolved: a **Local LLM Narrative** only restates the **Machine Report**, and **Deterministic Narrative** is the fallback.
+- Optional LLM output could overclaim. Resolved: a **Local LLM Narrative** or **Cloud LLM Narrative** only restates the **Machine Report**, and **Deterministic Narrative** is the fallback.
 - Datadog and PagerDuty could be mistaken for required proof. Resolved: they are **Operational Enrichment**, not required **Evidence**.
 - Fallback telemetry could be mistaken for live Coral output. Resolved: label it **Demo Enrichment Data**, never **Live Coral Enrichment**.
 - Agent integration could create a second investigation path. Resolved: the **MCP Investigation Tool** wraps the **Investigation Command**.
