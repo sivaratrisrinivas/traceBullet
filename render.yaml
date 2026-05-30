@@ -2,7 +2,7 @@ services:
   - type: web
     name: tracebullet
     runtime: docker
-    plan: starter
+    plan: free
     autoDeployTrigger: commit
     healthCheckPath: /api/health
     envVars:
