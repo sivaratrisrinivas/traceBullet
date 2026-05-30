@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: tracebullet
+    runtime: docker
+    plan: starter
+    autoDeployTrigger: commit
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRACEBULLET_APP_HOST
+        value: 0.0.0.0
+      - key: TRACEBULLET_CORAL_QUERY_COMMAND
+        value: node
+      - key: TRACEBULLET_CORAL_QUERY_ARGS
+        value: scripts/run-coral-sql.mjs
+      - key: TRACEBULLET_CORAL_QUERY_RETRIES
+        value: "1"
+      - key: TRACEBULLET_CORAL_RETRY_DELAY_MS
+        value: "1000"
+      - key: TRACEBULLET_GITHUB_OWNER
+        value: sivaratrisrinivas
+      - key: TRACEBULLET_GITHUB_REPO
+        value: traceBullet
+      - key: TRACEBULLET_SLACK_CHANNEL_ID
+        value: C0B689JN3L6
+      - key: TRACEBULLET_NARRATIVE_PROVIDER
+        value: gemini
+      - key: TRACEBULLET_GEMINI_MODEL
+        value: gemini-3.5-flash
+      - key: TRACEBULLET_GEMINI_FALLBACK_MODEL
+        value: gemini-2.5-flash
+      - key: TRACEBULLET_ENABLE_LIVE_ENRICHMENTS
+        value: "false"
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: SENTRY_ORG
+        sync: false
+      - key: SENTRY_TOKEN
+        sync: false
+      - key: SLACK_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

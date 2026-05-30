@@ -261,6 +261,30 @@ For the MCP server and JSON stdin/stdout agent adapter, see [docs/agent-tool.md]
 
 For the React investigation interface and local app server, see [ui/README.md](ui/README.md).
 
+## Deploy On Render
+
+TraceBullet includes a Docker-based Render deployment:
+
+- [Dockerfile](Dockerfile) installs Node.js dependencies, builds the UI, runs tests, and installs the Coral CLI.
+- [scripts/render-start.mjs](scripts/render-start.mjs) configures Coral sources from runtime environment variables, then starts the app server.
+- [render.yaml](render.yaml) defines the Render web service, health check, and non-secret environment defaults.
+
+Deploy steps:
+
+1. Push this repo to GitHub.
+2. In Render, create a new Blueprint from the repo. Render uses `render.yaml`.
+3. Fill the secret environment variables Render prompts for:
+   - `GITHUB_TOKEN`: GitHub token with read access to `sivaratrisrinivas/traceBullet`.
+   - `SENTRY_ORG`: Sentry organization slug.
+   - `SENTRY_TOKEN`: Sentry token with `org:read`, `event:read`, `member:read`, `project:read`, and `project:releases`.
+   - `SLACK_TOKEN`: Slack bot token with `channels:read`, `channels:history`, `groups:read`, `groups:history`, `users:read`, and `users:read.email`.
+   - `GEMINI_API_KEY`: optional, but needed for cloud Narrative Summary.
+4. Deploy the service.
+5. Open `https://<your-service>.onrender.com/api/health`.
+6. Open `https://<your-service>.onrender.com` and run the default `CHECKOUT-4` investigation.
+
+The deployed live path works by running `coral source add github`, `coral source add sentry`, and `coral source add slack` during service startup. Keep these credentials pointed only at sandbox/demo sources.
+
 ## Posting A Slack Marker
 
 TraceBullet can read Slack through Coral, but Coral does not post Slack messages. This repo includes a small helper for posting a marker through Slack's API:

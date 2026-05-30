@@ -8,6 +8,7 @@
     "app": "npm run ui:build && npm run app:server",
     "app:server": "node scripts/tracebullet-app-server.mjs",
     "mcp:server": "node scripts/tracebullet-mcp-server.mjs",
+    "render:start": "node scripts/render-start.mjs",
     "ui:dev": "vite --host 127.0.0.1 --port 4175 ui",
     "ui:build": "vite build ui --outDir ../dist/ui --emptyOutDir",
     "ui:preview": "vite preview --host 127.0.0.1 --port 4175 --outDir dist/ui",

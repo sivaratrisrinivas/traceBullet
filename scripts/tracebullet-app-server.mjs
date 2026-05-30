@@ -12,8 +12,8 @@ const rootDir = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const dotenvResult = loadDotenv(resolve(rootDir, ".env"));
 
 const staticDir = resolve(rootDir, "dist/ui");
-const host = process.env.TRACEBULLET_APP_HOST ?? "127.0.0.1";
-const port = Number.parseInt(process.env.TRACEBULLET_APP_PORT ?? "4180", 10);
+const host = process.env.TRACEBULLET_APP_HOST ?? (process.env.RENDER ? "0.0.0.0" : "127.0.0.1");
+const port = Number.parseInt(process.env.TRACEBULLET_APP_PORT ?? process.env.PORT ?? "4180", 10);
 
 const server = createServer(async (request, response) => {
   try {
