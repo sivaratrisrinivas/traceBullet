@@ -133,6 +133,8 @@ Then open:
 http://127.0.0.1:4180
 ```
 
+The React app is a demo-grade investigation surface: it starts on the live Coral sandbox path, asks for one decision per screen, then reveals the Machine Report step by step through a focused evidence aperture. The default live issue is `CHECKOUT-4`, which exercises Sentry, GitHub, Slack context, Operational Enrichment, and optional Narrative Summary when the required local credentials are configured.
+
 TraceBullet's honest claim:
 
 > TraceBullet uses Coral to query live Sentry, GitHub, and Slack sandbox sources locally, filters Candidate PRs and Slack Context through SQL, then applies deterministic TypeScript ranking and report formatting.
